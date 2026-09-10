@@ -7,6 +7,11 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { createAnatomicalMaterial } from "./anatomy/surfaceMaterials";
 import { isExcludedEducationalMesh } from "./anatomy/neutralPresentation";
 import {
+  anatomyAsset,
+  decodeAnatomyResponse,
+  INITIAL_ANATOMY_SOURCES,
+} from "./anatomy/humanAtlas";
+import {
   identifyOrgan,
   organColors,
   organNames,
@@ -53,7 +58,6 @@ type Runtime = {
   orient: (immediate?: boolean) => void;
 };
 
-const INITIAL_SOURCES = ["skin", "bones", "organs", "heart", "head"];
 const labelIds = [
   "brain",
   "lungs",
@@ -63,17 +67,6 @@ const labelIds = [
   "small-intestine",
 ];
 const transparentRaycast = () => undefined;
-const anatomicalAnchors: Record<string, [number, number, number]> = {
-  brain: [0, 1.65, 0.02],
-  heart: [0.024, 1.28, 0.07],
-  lungs: [-0.06, 1.33, 0.055],
-  liver: [-0.06, 1.18, 0.06],
-  stomach: [0.055, 1.135, 0.07],
-  "small-intestine": [0, 0.985, 0.07],
-  "large-intestine": [-0.075, 1.05, 0.06],
-  kidneys: [-0.065, 1.1, -0.065],
-  bladder: [0, 0.86, 0.075],
-};
 
 export default function AnatomyScene(props: AnatomySceneProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -90,6 +83,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     const el = host.current;
     if (!el) return;
     let disposed = false;
+    const abort = new AbortController();
     let frame = 0;
     let lastLabelUpdate = 0;
     const scene = new THREE.Scene();
@@ -205,6 +199,9 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     const sources = new Map<string, Promise<void>>();
     const targetPosition = new THREE.Vector3();
     const targetLook = new THREE.Vector3();
+    const orbitOffset = new THREE.Vector3();
+    const currentOrbit = new THREE.Spherical();
+    const targetOrbit = new THREE.Spherical();
     let transitioning = false;
     let initialReady = false;
     let hoverId = "";
@@ -253,7 +250,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         }
       }
       controls.minDistance = p.focusMode ? 0.08 : 0.35;
-      const distance = baseDistance / zoom;
+      const distance = Math.max(controls.minDistance, baseDistance / zoom);
       const angle = {
         front: 0,
         back: Math.PI,
@@ -267,6 +264,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         center.z + Math.cos(angle) * distance,
       );
       if (immediate) {
+        transitioning = false;
         camera.position.copy(targetPosition);
         controls.target.copy(targetLook);
         controls.update();
@@ -324,7 +322,11 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         mat.color.set(base);
         if (!detailed && !isSkin)
           mat.color.lerp(new THREE.Color("#c3d8de"), 0.25);
-        if (organ === "vessels" && /vein|vena/.test(mesh.name.toLowerCase()))
+        if (
+          organ === "vessels" &&
+          (mesh.userData.variant === "venous" ||
+            /vein|vena/.test(mesh.name.toLowerCase()))
+        )
           mat.color.set("#7496b7");
         let opacity = 1;
         if (isSkin) {
@@ -382,6 +384,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         p.layers.muscles ? "muscular" : "",
         p.layers.vessels ? "cardiovascular" : "",
         p.layers.nerves ? "nervous" : "",
+        p.layers.nerves ? "cranial" : "",
       ].filter(Boolean);
       if (optional.some((s) => !sources.has(s))) {
         setLayerLoading(true);
@@ -400,78 +403,96 @@ export default function AnatomyScene(props: AnatomySceneProps) {
 
     function load(source: string): Promise<void> {
       if (sources.has(source)) return sources.get(source)!;
-      const asset = source === "skin" ? "skin-neutral" : source;
-      const promise = loader.loadAsync(`/models/${asset}.glb`).then((gltf) => {
-        if (disposed) {
-          gltf.scene.traverse((o) => {
-            if (o instanceof THREE.Mesh) {
-              o.geometry.dispose();
-              (Array.isArray(o.material) ? o.material : [o.material]).forEach(
-                (m) => m.dispose(),
-              );
-            }
-          });
-          return;
-        }
-        gltf.scene.updateMatrixWorld(true);
-        const boxes = new Map<string, THREE.Box3>();
-        gltf.scene.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          if (
-            /\.g\.|systemg001|systemsg001|organsg001/i.test(object.name) ||
-            isExcludedEducationalMesh(object.name, source)
-          ) {
-            object.visible = false;
-            object.geometry.dispose();
-            (Array.isArray(object.material)
-              ? object.material
-              : [object.material]
-            ).forEach((m) => m.dispose());
+      const asset = anatomyAsset(source);
+      const promise = fetch(asset.url, { signal: abort.signal })
+        .then(decodeAnatomyResponse)
+        .then((buffer) => loader.parseAsync(buffer, "/models/"))
+        .then((gltf) => {
+          if (disposed) {
+            gltf.scene.traverse((o) => {
+              if (o instanceof THREE.Mesh) {
+                o.geometry.dispose();
+                (Array.isArray(o.material) ? o.material : [o.material]).forEach(
+                  (m) => m.dispose(),
+                );
+              }
+            });
             return;
           }
-          const organ = identifyOrgan(object.name, source);
-          const oldMaterial = object.material;
-          (Array.isArray(oldMaterial) ? oldMaterial : [oldMaterial]).forEach(
-            (m) => m.dispose(),
-          );
-          if (!object.geometry.attributes.normal)
-            object.geometry.computeVertexNormals();
-          const material = createAnatomicalMaterial(organ, source);
-          object.material = material;
-          const mesh = object as Tissue;
-          const box = new THREE.Box3().setFromObject(mesh);
-          const center = box.getCenter(new THREE.Vector3());
-          mesh.userData = {
-            ...mesh.userData,
-            source,
-            organ,
-            centerY: center.y,
-            basePosition: mesh.position.clone(),
-            baseScale: mesh.scale.clone(),
-          };
-          if (source === "skin") mesh.raycast = transparentRaycast;
-          meshes.push(mesh);
-          const organBox = boxes.get(organ) || new THREE.Box3();
-          organBox.union(box);
-          boxes.set(organ, organBox);
-        });
-        for (const [id, box] of boxes)
-          if (!centers.has(id))
-            centers.set(
-              id,
-              anatomicalAnchors[id]
-                ? new THREE.Vector3(...anatomicalAnchors[id])
-                : box.getCenter(new THREE.Vector3()),
+          // Match the existing BodyParts3D skin origin; no internal mesh resculpting.
+          if (asset.atlas) gltf.scene.position.z = -0.013;
+          gltf.scene.updateMatrixWorld(true);
+          const boxes = new Map<string, THREE.Box3>();
+          const retainedSource =
+            source === "lungs"
+              ? "organs"
+              : source === "cranial"
+                ? "nervous"
+                : source;
+          const removed: THREE.Mesh[] = [];
+          gltf.scene.traverse((object) => {
+            if (!(object instanceof THREE.Mesh)) return;
+            const organ = asset.atlas
+              ? (object.userData.organ as string)
+              : identifyOrgan(object.name, retainedSource);
+            const bounds = new THREE.Box3().setFromObject(object);
+            if (
+              /\.g\.|systemg001|systemsg001|organsg001/i.test(object.name) ||
+              isExcludedEducationalMesh(object.name, retainedSource) ||
+              (source === "lungs" && organ !== "lungs") ||
+              (source === "nervous" &&
+                (organ !== "nerves" || bounds.min.y >= 1.535))
+            ) {
+              removed.push(object);
+              object.geometry.dispose();
+              (Array.isArray(object.material)
+                ? object.material
+                : [object.material]
+              ).forEach((m) => m.dispose());
+              return;
+            }
+            const oldMaterial = object.material;
+            (Array.isArray(oldMaterial) ? oldMaterial : [oldMaterial]).forEach(
+              (m) => m.dispose(),
             );
-        scene.add(gltf.scene);
-        update();
-        if (
-          initialReady &&
-          latest.current.focusMode &&
-          boxes.has(latest.current.selectedOrgan)
-        )
-          orient();
-      });
+            if (!object.geometry.attributes.normal)
+              object.geometry.computeVertexNormals();
+            const material = createAnatomicalMaterial(organ, retainedSource);
+            object.material = material;
+            const mesh = object as Tissue;
+            const box = new THREE.Box3().setFromObject(mesh);
+            const center = box.getCenter(new THREE.Vector3());
+            mesh.userData = {
+              ...mesh.userData,
+              source: retainedSource,
+              organ,
+              centerY: center.y,
+              basePosition: mesh.position.clone(),
+              baseScale: mesh.scale.clone(),
+            };
+            if (source === "skin") mesh.raycast = transparentRaycast;
+            meshes.push(mesh);
+            const organBox = boxes.get(organ) || new THREE.Box3();
+            organBox.union(box);
+            boxes.set(organ, organBox);
+          });
+          removed.forEach((object) => object.removeFromParent());
+          for (const [id, box] of boxes)
+            if (!centers.has(id))
+              centers.set(id, box.getCenter(new THREE.Vector3()));
+          scene.add(gltf.scene);
+          update();
+          if (
+            initialReady &&
+            latest.current.focusMode &&
+            boxes.has(latest.current.selectedOrgan)
+          )
+            orient();
+        })
+        .catch((error) => {
+          sources.delete(source);
+          throw error;
+        });
       sources.set(source, promise);
       return promise;
     }
@@ -556,14 +577,48 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     function animate() {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
+      const dt = clock.getDelta();
+      const t = clock.elapsedTime;
       if (transitioning) {
-        camera.position.lerp(targetPosition, 0.095);
-        controls.target.lerp(targetLook, 0.095);
-        if (camera.position.distanceTo(targetPosition) < 0.001)
+        // Orbit around the target instead of crossing it on opposite view changes.
+        // Cartesian interpolation can get stuck against OrbitControls.minDistance.
+        const blend = 1 - Math.exp(-8 * dt);
+        currentOrbit.setFromVector3(
+          orbitOffset.copy(camera.position).sub(controls.target),
+        );
+        targetOrbit.setFromVector3(
+          orbitOffset.copy(targetPosition).sub(targetLook),
+        );
+        const angle =
+          THREE.MathUtils.euclideanModulo(
+            targetOrbit.theta - currentOrbit.theta + Math.PI,
+            Math.PI * 2,
+          ) - Math.PI;
+        currentOrbit.theta += angle * blend;
+        currentOrbit.phi = THREE.MathUtils.lerp(
+          currentOrbit.phi,
+          targetOrbit.phi,
+          blend,
+        );
+        currentOrbit.radius = THREE.MathUtils.lerp(
+          currentOrbit.radius,
+          targetOrbit.radius,
+          blend,
+        );
+        controls.target.lerp(targetLook, blend);
+        camera.position
+          .copy(controls.target)
+          .add(orbitOffset.setFromSpherical(currentOrbit));
+        if (
+          camera.position.distanceTo(targetPosition) < 0.001 &&
+          controls.target.distanceTo(targetLook) < 0.001
+        ) {
+          camera.position.copy(targetPosition);
+          controls.target.copy(targetLook);
           transitioning = false;
+        }
       }
-      controls.update();
+      controls.update(dt);
       const p = latest.current;
       symptomHalo.visible = !!p.symptom;
       if (p.symptom) {
@@ -670,11 +725,13 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     animate();
     let finished = 0;
     Promise.all(
-      INITIAL_SOURCES.map((source) =>
+      INITIAL_ANATOMY_SOURCES.map((source) =>
         load(source).then(() => {
           finished++;
           if (!disposed)
-            setLoaded(Math.round((finished / INITIAL_SOURCES.length) * 100));
+            setLoaded(
+              Math.round((finished / INITIAL_ANATOMY_SOURCES.length) * 100),
+            );
         }),
       ),
     )
@@ -692,6 +749,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       });
     return () => {
       disposed = true;
+      abort.abort();
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();

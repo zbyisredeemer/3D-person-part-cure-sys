@@ -23,7 +23,7 @@
 }
 body {
   margin: 0;
-  min-width: 360px;
+  min-width: 320px;
 }
 button,
 input,
@@ -2612,7 +2612,7 @@ button:hover:not(:disabled) {
 }
 @media (max-width: 680px) {
   body {
-    min-width: 360px;
+    min-width: 320px;
   }
   .site-header {
     padding: 13px 16px 0;
@@ -2635,6 +2635,7 @@ button:hover:not(:disabled) {
   .main-nav {
     gap: 0;
     height: 45px;
+    overflow-x: auto;
   }
   .main-nav > button {
     font-size: 10px;
@@ -2746,7 +2747,7 @@ button:hover:not(:disabled) {
     font-size: 7px;
   }
   .layer-options {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 4px;
   }
   .layer-options > button {

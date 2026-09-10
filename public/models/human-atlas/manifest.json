@@ -1,0 +1,298 @@
+{
+  "source": "https://github.com/ashemag/human-atlas",
+  "revision": "1c38bf35c254a891200d3cedecfd57abebe83d8d",
+  "dataset": "BodyParts3D 4.0",
+  "license": "CC BY 4.0",
+  "upstreamManifestSha256": "c359f4bcd2cba90b7411d66d5e9fc04dc81294d46cd5c1e8b212c824f2e5bbee",
+  "sourceParts": 2234,
+  "importedParts": 2193,
+  "coordinateTranslation": [
+    0,
+    0,
+    -0.013
+  ],
+  "assets": [
+    {
+      "source": "organs",
+      "file": "organs.glb.gz",
+      "bytes": 2535682,
+      "uncompressedBytes": 4522588,
+      "sha256": "073e9e8a03cddfd18048f7b026b6491494f0fc7a5fb863115d68e547dd4e1a89",
+      "meshes": 13,
+      "sourceParts": 230,
+      "triangles": 181382
+    },
+    {
+      "source": "bones",
+      "file": "bones.glb.gz",
+      "bytes": 4562139,
+      "uncompressedBytes": 8215344,
+      "sha256": "ad72960e4bb62a0bc5e7430e22ffc44aff41119bb5697904e53aa6bb4b7a090f",
+      "meshes": 3,
+      "sourceParts": 296,
+      "triangles": 336566
+    },
+    {
+      "source": "head",
+      "file": "head.glb.gz",
+      "bytes": 4070854,
+      "uncompressedBytes": 7228732,
+      "sha256": "cc9cc578cd1337929da709403516ee74d30d56fcc287dd7bf4bf1517101b01af",
+      "meshes": 3,
+      "sourceParts": 148,
+      "triangles": 303076
+    },
+    {
+      "source": "nervous",
+      "file": "nervous.glb.gz",
+      "bytes": 209348,
+      "uncompressedBytes": 379256,
+      "sha256": "cd88e4b02bb7aa8d429971b47ee1f65b39f8641227cf595dbe66bf20b9915f4e",
+      "meshes": 1,
+      "sourceParts": 37,
+      "triangles": 15620
+    },
+    {
+      "source": "muscular",
+      "file": "muscular.glb.gz",
+      "bytes": 11234601,
+      "uncompressedBytes": 21478816,
+      "sha256": "285afcdf0300770010bc9bf494f47d50519fd72be84c4ea5d125087121e8b128",
+      "meshes": 1,
+      "sourceParts": 439,
+      "triangles": 700708
+    },
+    {
+      "source": "cardiovascular",
+      "file": "cardiovascular.glb.gz",
+      "bytes": 7350361,
+      "uncompressedBytes": 13099740,
+      "sha256": "49715e04a0f6c22a5569d31da1236da35891bc3a904a8189a86f85022c6dc2ba",
+      "meshes": 2,
+      "sourceParts": 948,
+      "triangles": 562856
+    },
+    {
+      "source": "heart",
+      "file": "heart.glb.gz",
+      "bytes": 903947,
+      "uncompressedBytes": 1620808,
+      "sha256": "bf2f3d40183fb988b2b2be5c2978de0fdc2da24a82d7e55ab9fd546a8d52cc16",
+      "meshes": 1,
+      "sourceParts": 95,
+      "triangles": 67290
+    }
+  ],
+  "omitted": [
+    {
+      "id": "FJ1795",
+      "name": "Pineal body",
+      "system": "endocrine"
+    },
+    {
+      "id": "FJ1796",
+      "name": "Pituitary gland",
+      "system": "endocrine"
+    },
+    {
+      "id": "FJ2056",
+      "name": "Deep dorsal vein of penis",
+      "system": "venous"
+    },
+    {
+      "id": "FJ2208",
+      "name": "Superficial dorsal vein of penis",
+      "system": "venous"
+    },
+    {
+      "id": "FJ2561",
+      "name": "Spleen",
+      "system": "lymphatic"
+    },
+    {
+      "id": "FJ2810",
+      "name": "Skin",
+      "system": "integumentary"
+    },
+    {
+      "id": "FJ2812",
+      "name": "Eyebrow",
+      "system": "integumentary"
+    },
+    {
+      "id": "FJ2813",
+      "name": "Hair of head",
+      "system": "integumentary"
+    },
+    {
+      "id": "FJ2815",
+      "name": "Pubic hair",
+      "system": "integumentary"
+    },
+    {
+      "id": "FJ3129",
+      "name": "Left adrenal gland",
+      "system": "endocrine"
+    },
+    {
+      "id": "FJ3130",
+      "name": "Right adrenal gland",
+      "system": "endocrine"
+    },
+    {
+      "id": "FJ3132",
+      "name": "Corpus cavernosum of penis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3133",
+      "name": "Corpus spongiosum of penis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3134",
+      "name": "Glans penis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3135",
+      "name": "Left deferent duct",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3136",
+      "name": "Left epididymis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3137",
+      "name": "Left seminal vesicle",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3138",
+      "name": "Left testis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3139",
+      "name": "Prostate",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3140",
+      "name": "Right deferent duct",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3141",
+      "name": "Right epididymis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3142",
+      "name": "Right testis",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3143",
+      "name": "Right seminal vesicle",
+      "system": "reproductive"
+    },
+    {
+      "id": "FJ3148",
+      "name": "Urethra",
+      "system": "urinary"
+    },
+    {
+      "id": "FJ3150",
+      "name": "Left lobe of thymus",
+      "system": "lymphatic"
+    },
+    {
+      "id": "FJ3151",
+      "name": "Right lobe of thymus",
+      "system": "lymphatic"
+    },
+    {
+      "id": "FJ3396",
+      "name": "Mesentery of small intestine",
+      "system": "digestive"
+    },
+    {
+      "id": "FJ3397",
+      "name": "Mesoappendix",
+      "system": "digestive"
+    },
+    {
+      "id": "FJ3398",
+      "name": "Transverse mesocolon",
+      "system": "digestive"
+    },
+    {
+      "id": "FJ3426",
+      "name": "Left superficial dorsal vein of penis",
+      "system": "venous"
+    },
+    {
+      "id": "FJ3496",
+      "name": "Left dorsal artery of penis",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3497",
+      "name": "Left dorsal artery of penis",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3525",
+      "name": "Left internal pudendal vein",
+      "system": "venous"
+    },
+    {
+      "id": "FJ3532",
+      "name": "Left testicular artery",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3533",
+      "name": "Left testicular vein",
+      "system": "venous"
+    },
+    {
+      "id": "FJ3592",
+      "name": "Right dorsal artery of penis",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3593",
+      "name": "Right dorsal artery of penis",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3610",
+      "name": "Right internal pudendal vein",
+      "system": "venous"
+    },
+    {
+      "id": "FJ3617",
+      "name": "Right testicular artery",
+      "system": "arterial"
+    },
+    {
+      "id": "FJ3618",
+      "name": "Right testicular vein",
+      "system": "venous"
+    },
+    {
+      "id": "FJ3637",
+      "name": "Right superficial dorsal vein of penis",
+      "system": "venous"
+    }
+  ],
+  "supplements": [
+    "../skin-neutral.glb: retained neutral exterior",
+    "../organs.glb: lung surfaces only",
+    "../nervous.glb: spinal and peripheral nerves below the cranial region"
+  ]
+}

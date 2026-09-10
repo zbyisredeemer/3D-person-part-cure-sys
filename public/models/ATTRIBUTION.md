@@ -1,8 +1,28 @@
 # Anatomical model attribution and provenance
 
-This educational demonstrator uses actual anatomical surface meshes, with simplified semantic grouping and display colors. It is not a patient-specific scan, a diagnostic device, or a clinically validated anatomy atlas. Some internal structures are intentionally hidden for legibility. Skin registration between the two source versions is approximate; organs and skeleton preserve their source geometry and relative coordinates.
+This educational demonstrator uses actual anatomical surface meshes, with simplified semantic grouping and display colors. It is not a patient-specific scan, a diagnostic device, or a clinically validated anatomy atlas. Some internal structures are intentionally hidden for legibility. Core structures now come from Human Atlas / BodyParts3D 4.0. Registration of retained Z-Anatomy supplements is approximate.
 
-## Z-Anatomy meshes
+## Human Atlas / BodyParts3D 4.0 (active core, 2026-09-10)
+
+BodyParts3D, copyright The Database Center for Life Science (DBCLS), licensed under Creative Commons Attribution 4.0 International.
+
+- Reference project: https://github.com/ashemag/human-atlas
+- Pinned revision: `1c38bf35c254a891200d3cedecfd57abebe83d8d`.
+- Dataset: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+- Current dataset license: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+- License terms: https://creativecommons.org/licenses/by/4.0/
+- Original Human Atlas attribution: `human-atlas/UPSTREAM-ATTRIBUTION.md`.
+- Human Atlas application code is MIT licensed; the notice is preserved in `human-atlas/HUMAN-ATLAS-LICENSE.txt`.
+
+The upstream dataset includes 2,234 simplified source meshes. This project imports 2,193 of them (2,167,498 triangles) into seven compressed GLBs in `human-atlas/`. The other 41 structures are omitted according to the existing neutral exterior and organ-catalog scope; the complete list is recorded in `human-atlas/manifest.json`. This is not a claim to display every upstream structure.
+
+Adaptations in this project: regrouped surfaces into 24 organ/material batches, retained original positions, quantized normals and triangle connectivity, stored source names/FMA concepts/FJ identifiers and geometry checksums on each batch, corrected display mappings such as brain ventricles versus heart chambers and hepatovenous parenchymal segments versus veins, applied existing educational materials, and gzip-compressed the GLBs. A runtime translation of `[0, 0, -0.013]` meters reconciles the upstream BodyParts3D `-0.1` Z origin with this project's existing skin `-0.113` Z origin. The internal surfaces were not resculpted or independently scaled.
+
+Reproduce using `node --import tsx scripts/import-human-atlas.ts /path/to/human-atlas` from the project root with the pinned upstream checkout. The importer verifies the source manifest hash. Tests compare each imported structure's positions, normals and local triangle indices against the source geometry checksum after undoing index offsets from batching.
+
+Active supplements: `skin-neutral.glb` remains the neutral exterior described below; only lung surfaces from the legacy `organs.glb` are displayed; `nervous.glb` supplies spinal/peripheral nerve structures extending below the cranial region, while the new atlas supplies cranial nerves. The reference release lacks lung-lobe surfaces and complete peripheral nerve coverage. These supplements retain their existing licenses and are not relicensed by this addition. All other old GLBs remain as historical source assets, not the active core anatomy.
+
+## Z-Anatomy supplements and historical meshes
 
 “Z-Anatomy — The libre 3D atlas of anatomy — CC-BY-SA 4.0.”
 
