@@ -1,0 +1,33 @@
+name: zhiti-atlas
+services:
+  atlas:
+    image: zhiti-atlas:local
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:${ATLAS_PORT:-8080}:8787"
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 8787
+      ALLOWED_ORIGINS: "http://localhost:${ATLAS_PORT:-8080},http://127.0.0.1:${ATLAS_PORT:-8080}"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

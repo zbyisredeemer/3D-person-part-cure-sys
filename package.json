@@ -5,11 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n API,WEB \"tsx watch server/index.ts\" \"vite --host 0.0.0.0\"",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build && npm run build:server",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist-server/index.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "tsx --test tests/*.test.ts",
     "dev:web": "vite --host 0.0.0.0",
-    "start": "tsx server/index.ts"
+    "start": "node dist-server/index.cjs",
+    "docker:up": "bash scripts/docker.sh up",
+    "docker:down": "bash scripts/docker.sh down",
+    "docker:restart": "bash scripts/docker.sh restart",
+    "docker:status": "bash scripts/docker.sh status",
+    "docker:logs": "bash scripts/docker.sh logs",
+    "docker:check": "bash scripts/docker.sh check"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
@@ -27,6 +34,7 @@
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^10.0.5",
+    "esbuild": "0.28.2",
     "tsx": "^4.20.5",
     "typescript": "~5.9.2",
     "vite": "^7.1.5"

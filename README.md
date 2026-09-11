@@ -21,6 +21,31 @@ npm start     # 同时提供 dist 静态页面和 API，访问 http://127.0.0.1:
 
 `npm run dev:web` 仅运行前端；`npm run preview` 仅预览构建产物。没有接口服务时，助手明确使用本地科普演示。端口 5173 被占用时开发命令会提示失败，先关闭占用该端口的旧实例。
 
+## 本地 Docker 部署
+
+需要运行中的 Docker Desktop（或 Docker Engine）、Docker Compose 2.24+、Bash 和 curl；宿主机不需要安装 Node.js。首次构建需要联网下载基础镜像和 npm 依赖，模型全部随项目打包。
+
+```bash
+bash scripts/docker.sh up       # 构建、测试、启动/更新，等待健康并验证资源和 API
+bash scripts/docker.sh status   # 容器状态与实际访问地址
+bash scripts/docker.sh check    # 重新执行部署检查，不调用付费在线 AI
+bash scripts/docker.sh logs     # 跟随日志；Ctrl-C 只退出日志，不停止服务
+bash scripts/docker.sh restart  # 重启现有容器，不重新构建或加载新配置
+bash scripts/docker.sh down     # 停止并移除本项目容器/网络，不删除镜像和本地文件
+```
+
+默认访问 **http://localhost:8080**，只绑定 `127.0.0.1`，不会暴露给局域网。Compose 项目名为 `zhiti-atlas`，运行镜像为 `zhiti-atlas:local`，不会停止其他 Docker 项目。端口被占用时会报错，不会自动结束占用进程。
+
+配置文件为可选的 `.env.docker`，字段参考 `.env.docker.example`。修改 `ATLAS_PORT` 可更换本机端口，允许来源会自动匹配该端口；修改后重新执行 `up`。本地开发的 `.env` 不会自动用于 Docker。默认无需密钥，运行本地科普模式；只有在 `.env.docker` 中填写 `OPENAI_API_KEY` 和 `OPENAI_MODEL` 后才启用在线 AI。密钥文件被 Git 和 Docker 构建上下文排除，勿将其提交或分享；Docker 管理员仍可查看容器环境变量。
+
+已有 Node.js 的环境也可使用 `npm run docker:up`、`docker:down`、`docker:restart`、`docker:status`、`docker:logs`、`docker:check`。单独构建使用 `bash scripts/docker.sh build`。脚本可从任意工作目录通过绝对路径调用；`up` 可重复执行，构建失败时不会替换正在运行的容器。
+
+镜像采用多阶段构建：先执行全部自动测试并打包前后端，再仅将静态页面、模型、后端 JS 和检查脚本放入运行镜像。运行阶段不包含源码、node_modules、tsx 或 Vite 开发服务器；以非 root 用户运行，根文件系统只读，限制日志大小并配置健康检查、退出信号处理及 `unless-stopped` 重启策略。Docker Desktop 必须保持运行；手动停止的容器不会自行恢复。
+
+启动验证涵盖首页、生产 JS、API 状态、Human Atlas 清单、压缩 GLB、原有模型补充、Draco 解码器、公开端口的同源请求和非法来源拒绝。可在宿主机额外运行 `SMOKE_URL=http://127.0.0.1:8080 node scripts/smoke.mjs`。构建后的非容器启动方式仍为 `npm start`，现在直接运行 `dist-server/index.cjs`，须先执行 `npm run build`。
+
+Compose 使用的可选配置文件与健康等待行为见 [Docker 环境变量文档](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/) 和 [Compose up 文档](https://docs.docker.com/reference/cli/docker/compose/up/)。
+
 ## 已实现
 
 | 模块       | 行为                                                                            |

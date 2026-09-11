@@ -1,0 +1,15 @@
+.git
+.agents
+.codex
+node_modules
+dist
+dist-server
+artifacts
+docs
+.env
+.env.*
+*.log
+*.tsbuildinfo
+**/.DS_Store
+coverage
+README.md

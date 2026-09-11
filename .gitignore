@@ -1,8 +1,10 @@
 node_modules/
 dist/
+dist-server/
 .DS_Store
 *.tsbuildinfo
 .env
 .env.*
 !.env.example
+!.env.docker.example
 artifacts/

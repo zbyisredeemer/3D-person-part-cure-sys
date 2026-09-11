@@ -156,6 +156,12 @@ const server = createServer(async (req, res) => {
 });
 server.requestTimeout = 30000;
 server.headersTimeout = 15000;
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10000).unref();
+};
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);
 server.listen(port, host, () =>
   console.log(
     `Atlas API: http://${host}:${port} (${isOnline(config) ? "online AI" : "local education"})`,
