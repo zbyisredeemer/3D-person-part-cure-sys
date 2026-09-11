@@ -6,6 +6,8 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { createAnatomicalMaterial } from "./anatomy/surfaceMaterials";
 import { isExcludedEducationalMesh } from "./anatomy/neutralPresentation";
+import { organInventory } from "./anatomy/exploration";
+import { inventoryOrgans } from "./anatomy/viewPresets";
 import {
   anatomyAsset,
   decodeAnatomyResponse,
@@ -28,6 +30,7 @@ export interface AnatomySceneProps {
   zoom: number;
   resetKey: number;
   focusMode: boolean;
+  exploded?: boolean;
   bodyFraming?: "full" | "upper";
   renderStyle?: "detailed" | "soft";
   symptom: string | null;
@@ -107,7 +110,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    renderer.toneMappingExposure = 0.96;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.shadowMap.autoUpdate = false;
@@ -196,6 +199,9 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     const loader = new GLTFLoader().setDRACOLoader(draco);
     const meshes: Tissue[] = [];
     const centers = new Map<string, THREE.Vector3>();
+    const organBounds = new Map<string, THREE.Box3>();
+    const offsets = new Map<string, THREE.Vector3>();
+    let inventory = organInventory(organBounds, false);
     const sources = new Map<string, Promise<void>>();
     const targetPosition = new THREE.Vector3();
     const targetLook = new THREE.Vector3();
@@ -223,7 +229,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         const bounds = new THREE.Box3();
         for (const mesh of meshes) {
           if (mesh.visible && mesh.userData.organ === p.selectedOrgan)
-            bounds.union(new THREE.Box3().setFromObject(mesh));
+            bounds.union(mesh.userData.baseBounds as THREE.Box3);
         }
         if (!bounds.isEmpty()) {
           bounds.getCenter(center);
@@ -249,7 +255,19 @@ export default function AnatomyScene(props: AnatomySceneProps) {
           baseDistance = 0.6;
         }
       }
+      if (p.exploded && !inventory.bounds.isEmpty()) {
+        inventory.bounds.getCenter(center);
+        const size = inventory.bounds.getSize(new THREE.Vector3());
+        const sideView = p.view === "left" || p.view === "right";
+        baseDistance =
+          Math.max(
+            size.y / (2 * field * 0.85),
+            (sideView ? size.z : size.x) / (2 * field * camera.aspect * 0.8),
+          ) +
+          (sideView ? size.x : size.z) / 2;
+      }
       controls.minDistance = p.focusMode ? 0.08 : 0.35;
+      controls.maxDistance = p.exploded ? 18 : 5.8;
       const distance = Math.max(controls.minDistance, baseDistance / zoom);
       const angle = {
         front: 0,
@@ -274,12 +292,13 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     function update() {
       const p = latest.current;
       const detailed = p.renderStyle !== "soft";
+      inventory = organInventory(organBounds, el!.clientWidth < 500);
       controls.autoRotate = p.autoRotate;
-      hemisphere.intensity = detailed ? 1.25 : 1.8;
-      fill.intensity = detailed ? 0.9 : 1.35;
-      key.intensity = detailed ? 2.6 : 2;
-      key.castShadow = detailed;
-      ground.visible = !p.focusMode && p.bodyFraming !== "upper";
+      hemisphere.intensity = detailed ? 0.8 : 1.8;
+      fill.intensity = detailed ? 0.65 : 1.35;
+      key.intensity = detailed ? 2.2 : 2;
+      key.castShadow = detailed && !p.exploded;
+      ground.visible = !p.exploded && !p.focusMode && p.bodyFraming !== "upper";
       for (const mesh of meshes) {
         const { organ, source } = mesh.userData as {
           organ: string;
@@ -318,6 +337,8 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         if (source === "nervous" && organ !== "nerves") mesh.visible = false;
         if (source === "cardiovascular" && organ === "heart")
           mesh.visible = false;
+        if (p.exploded)
+          mesh.visible = inventoryOrgans.includes(organ) && !isLayer;
         const base = organColors[organ] || "#b3c8d5";
         mat.color.set(base);
         if (!detailed && !isSkin)
@@ -362,6 +383,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         ) {
           opacity = Math.min(opacity, 0.3);
         }
+        if (p.exploded) opacity = 1;
         const wasTransparent = mat.transparent;
         mat.opacity = opacity;
         mat.transparent = opacity < 0.999;
@@ -468,6 +490,8 @@ export default function AnatomyScene(props: AnatomySceneProps) {
               organ,
               centerY: center.y,
               basePosition: mesh.position.clone(),
+              baseWorldPosition: mesh.getWorldPosition(new THREE.Vector3()),
+              baseBounds: box.clone(),
               baseScale: mesh.scale.clone(),
             };
             if (source === "skin") mesh.raycast = transparentRaycast;
@@ -477,9 +501,13 @@ export default function AnatomyScene(props: AnatomySceneProps) {
             boxes.set(organ, organBox);
           });
           removed.forEach((object) => object.removeFromParent());
-          for (const [id, box] of boxes)
-            if (!centers.has(id))
-              centers.set(id, box.getCenter(new THREE.Vector3()));
+          for (const [id, box] of boxes) {
+            const combined = organBounds.get(id) || new THREE.Box3();
+            combined.union(box);
+            organBounds.set(id, combined);
+            centers.set(id, combined.getCenter(new THREE.Vector3()));
+            if (!offsets.has(id)) offsets.set(id, new THREE.Vector3());
+          }
           scene.add(gltf.scene);
           update();
           if (
@@ -514,6 +542,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       renderer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      inventory = organInventory(organBounds, width < 500);
       if (initialReady) orient(true);
     };
     const observer = new ResizeObserver(resize);
@@ -524,7 +553,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     let pointerDown = { x: 0, y: 0 };
     function hit(event: PointerEvent) {
       const p = latest.current;
-      if (p.layers.skin && p.skinOpacity >= 0.95 && !p.focusMode)
+      if (p.layers.skin && p.skinOpacity >= 0.95 && !p.focusMode && !p.exploded)
         return undefined;
       const rect = renderer!.domElement.getBoundingClientRect();
       pointer.set(
@@ -574,6 +603,8 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     renderer.domElement.addEventListener("pointerup", onUp);
     renderer.domElement.addEventListener("pointermove", onMove);
     const clock = new THREE.Clock();
+    const zeroOffset = new THREE.Vector3();
+    const localPosition = new THREE.Vector3();
     function animate() {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
@@ -620,7 +651,30 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       }
       controls.update(dt);
       const p = latest.current;
-      symptomHalo.visible = !!p.symptom;
+      let moved = false;
+      for (const [id, offset] of offsets) {
+        const target = p.exploded
+          ? inventory.offsets.get(id) || zeroOffset
+          : zeroOffset;
+        if (offset.distanceToSquared(target) > 1e-12) {
+          offset.lerp(target, 1 - Math.exp(-9 * dt));
+          if (offset.distanceToSquared(target) < 1e-8) offset.copy(target);
+          moved = true;
+        }
+      }
+      if (moved) {
+        for (const mesh of meshes) {
+          const offset = offsets.get(mesh.userData.organ) || zeroOffset;
+          if (offset.lengthSq() === 0) {
+            mesh.position.copy(mesh.userData.basePosition);
+            continue;
+          }
+          localPosition.copy(mesh.userData.baseWorldPosition).add(offset);
+          mesh.position.copy(mesh.parent!.worldToLocal(localPosition));
+        }
+        renderer!.shadowMap.needsUpdate = true;
+      }
+      symptomHalo.visible = !!p.symptom && !p.exploded;
       if (p.symptom) {
         const headSymptom = /head|头/.test(p.symptom);
         const abdominal = /abdom|stomach|腹|胃/.test(p.symptom);
@@ -662,9 +716,11 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         const compact = rect.width < 500;
         const ids = Array.from(
           new Set(
-            compact
-              ? [p.selectedOrgan, "brain", "liver"]
-              : [...labelIds, p.selectedOrgan],
+            p.exploded
+              ? inventoryOrgans
+              : compact
+                ? [p.selectedOrgan, "brain", "liver"]
+                : [...labelIds, p.selectedOrgan],
           ),
         );
         const projected: Label[] = [];
@@ -678,12 +734,36 @@ export default function AnatomyScene(props: AnatomySceneProps) {
               continue;
             if (p.activeSystem !== "all" && organSystems[id] !== p.activeSystem)
               continue;
-            const v = point.clone();
+            const v = point.clone().add(offsets.get(id) || zeroOffset);
             // The actual projected 3D point stays attached in back and side views.
             v.project(camera);
             if (v.z > 1 || Math.abs(v.y) > 1) continue;
+            if (p.exploded && Math.abs(v.x) > 1) continue;
             const anchorX = ((v.x + 1) / 2) * rect.width;
             const anchorY = ((1 - v.y) / 2) * rect.height;
+            if (p.exploded) {
+              const below = point.clone().add(offsets.get(id) || zeroOffset);
+              below.y -=
+                (organBounds.get(id)?.getSize(new THREE.Vector3()).y || 0) / 2 +
+                0.035;
+              below.project(camera);
+              projected.push({
+                id,
+                x: Math.max(8, Math.min(rect.width - 56, anchorX - 24)),
+                y: Math.max(
+                  16,
+                  Math.min(
+                    rect.height - 18,
+                    ((1 - below.y) / 2) * rect.height + 8,
+                  ),
+                ),
+                anchorX,
+                anchorY,
+                left: false,
+                selected: id === p.selectedOrgan,
+              });
+              continue;
+            }
             const left = ["liver", "small-intestine"].includes(id);
             const labelX = left
               ? Math.max(14, rect.width / 2 - 194)
@@ -703,6 +783,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
             });
           }
         for (const side of [true, false]) {
+          if (p.exploded) break;
           const sideLabels = projected
             .filter((l) => l.left === side)
             .sort((a, b) => a.y - b.y);
@@ -719,7 +800,23 @@ export default function AnatomyScene(props: AnatomySceneProps) {
                 : sideLabels[i + 1].y - 35,
             );
         }
-        setLabels(projected);
+        if (p.exploded) {
+          // Oblique/side views can project different grid columns onto each other.
+          const visible: Label[] = [];
+          for (const label of [...projected].sort(
+            (a, b) => Number(b.selected) - Number(a.selected),
+          )) {
+            if (
+              !visible.some(
+                (other) =>
+                  Math.abs(label.x - other.x) < 52 &&
+                  Math.abs(label.y - other.y) < 30,
+              )
+            )
+              visible.push(label);
+          }
+          setLabels(projected.filter((label) => visible.includes(label)));
+        } else setLabels(projected);
       }
     }
     animate();
@@ -785,6 +882,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     props.symptom,
     props.bodyFraming,
     props.renderStyle,
+    props.exploded,
   ]);
   useEffect(() => {
     runtime.current?.orient();
@@ -794,6 +892,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     props.resetKey,
     props.focusMode,
     props.bodyFraming,
+    props.exploded,
   ]);
   useEffect(() => {
     if (props.focusMode) runtime.current?.orient();
@@ -881,6 +980,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
           height: "100%",
           pointerEvents: "none",
           zIndex: 2,
+          display: props.exploded ? "none" : undefined,
         }}
       >
         {labels.map((label) => (
@@ -912,9 +1012,9 @@ export default function AnatomyScene(props: AnatomySceneProps) {
             position: "absolute",
             left: label.x,
             top: label.y - 13,
-            minWidth: 68,
+            minWidth: props.exploded ? 48 : 68,
             height: 26,
-            padding: "3px 11px",
+            padding: props.exploded ? "3px 5px" : "3px 11px",
             color: label.selected ? "#2b8c94" : "#738694",
             border: label.selected
               ? "1px solid #a1d2d8"
@@ -927,7 +1027,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
               : "none",
             borderRadius: 5,
             fontSize: 11,
-            letterSpacing: ".06em",
+            letterSpacing: 0,
             cursor: "pointer",
             whiteSpace: "nowrap",
             zIndex: 3,

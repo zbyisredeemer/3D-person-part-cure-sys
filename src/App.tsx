@@ -24,6 +24,7 @@ import {
   Heart,
   Info,
   Layers3,
+  LayoutGrid,
   Leaf,
   LoaderCircle,
   Menu,
@@ -59,6 +60,10 @@ import {
   SourceDialog,
 } from "./components/KnowledgeViews";
 import { HumanMark, LungArt } from "./components/OrganArt";
+import {
+  anatomyPresets,
+  inventoryOrgans,
+} from "./components/anatomy/viewPresets";
 
 const AnatomyScene = lazy(() => import("./components/AnatomyScene"));
 type Page = "explore" | "symptoms" | "diseases" | "drugs" | "assistant";
@@ -521,7 +526,7 @@ export default function App() {
     "respiratory",
   );
   const [search, setSearch] = useState("");
-  const [skinOpacity, setSkinOpacity] = useState(0.28);
+  const [skinOpacity, setSkinOpacity] = useState(0.16);
   const [layers, setLayers] = useState<Record<string, boolean>>({
     skin: true,
     organs: true,
@@ -534,6 +539,7 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [resetKey, setResetKey] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
+  const [exploded, setExploded] = useState(false);
   const [bodyFraming, setBodyFraming] = useState<"full" | "upper">("upper");
   const [renderStyle, setRenderStyle] = useState<"detailed" | "soft">(
     "detailed",
@@ -604,11 +610,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
   const navigate = (p: Page) => {
+    if (p !== "explore") setExploded(false);
     setPage(p);
     setSidebarOpen(false);
     setSceneExpanded(false);
   };
   const activateSystem = (id: string, keepSelection = false) => {
+    setExploded(false);
     setActiveSystem(id);
     if (!keepSelection) {
       const first = organs.find((o) => o.system === id);
@@ -626,6 +634,7 @@ export default function App() {
     else if (id !== "all") setLayers((prev) => ({ ...prev, organs: true }));
   };
   const selectOrgan = (id: string) => {
+    if (!inventoryOrgans.includes(id)) setExploded(false);
     setSelectedOrgan(id);
     ensureSelectedLayer(id);
     setSidebarOpen(false);
@@ -657,6 +666,7 @@ export default function App() {
     setLayers((previous) => ({ ...previous, [layer]: true }));
   };
   const resetScene = () => {
+    setExploded(false);
     setZoom(1);
     setView("front");
     setFocusMode(false);
@@ -677,8 +687,31 @@ export default function App() {
     selectScenario(related?.id || "chest-pain");
     navigate("symptoms");
   };
-  const toggleLayer = (id: string) =>
-    setLayers((prev) => ({ ...prev, [id]: !prev[id] }));
+  const applyPreset = (id: keyof typeof anatomyPresets) => {
+    const preset = anatomyPresets[id];
+    setLayers({ ...preset.layers });
+    setSelectedOrgan(preset.selectedOrgan);
+    setActiveSystem(preset.system);
+    setExpandedSystem(
+      organs.find((o) => o.id === preset.selectedOrgan)?.system || null,
+    );
+    setSkinOpacity(0.16);
+    setFocusMode(false);
+    setExploded(false);
+    setBodyFraming(id === "skeleton" || id === "muscles" ? "full" : "upper");
+    setZoom(1);
+    setView("front");
+    setAutoRotate(false);
+    setResetKey((k) => k + 1);
+  };
+  const toggleLayer = (id: string) => {
+    setExploded(false);
+    setFocusMode(false);
+    setLayers((prev) => ({
+      ...(exploded ? anatomyPresets.organs.layers : prev),
+      [id]: !(exploded ? id === "organs" : prev[id]),
+    }));
+  };
   const toggleBookmark = () => {
     const has = bookmarks.includes(selectedOrgan);
     setBookmarks((prev) =>
@@ -750,7 +783,10 @@ export default function App() {
           </button>
         </div>
       </header>
-      <main id="main-content" className="main-content">
+      <main
+        id="main-content"
+        className={`main-content ${page === "explore" ? "explorer-main" : ""}`}
+      >
         <section className="page-intro">
           <div className="intro-title">
             <span className="intro-eyebrow">
@@ -766,7 +802,7 @@ export default function App() {
             </span>
             <h1>
               {page === "explore"
-                ? "探索身体，理解健康"
+                ? "人体解剖图谱"
                 : page === "symptoms"
                   ? "倾听身体发出的信号"
                   : page === "diseases"
@@ -1032,7 +1068,7 @@ export default function App() {
               )}
               <section
                 ref={stageRef}
-                className={`anatomy-stage ${page === "symptoms" ? "symptom-stage" : ""} ${focusMode || bodyFraming === "upper" ? "detail-framing" : ""}`}
+                className={`anatomy-stage ${exploded ? "inventory-stage" : ""} ${page === "symptoms" ? "symptom-stage" : ""} ${focusMode || bodyFraming === "upper" ? "detail-framing" : ""}`}
                 aria-label="交互式三维人体模型"
               >
                 <div className="stage-top">
@@ -1064,10 +1100,15 @@ export default function App() {
                 <div className="stage-mode">
                   <button
                     className={
-                      !focusMode && bodyFraming === "full" ? "selected" : ""
+                      !exploded && !focusMode && bodyFraming === "full"
+                        ? "selected"
+                        : ""
                     }
-                    aria-pressed={!focusMode && bodyFraming === "full"}
+                    aria-pressed={
+                      !exploded && !focusMode && bodyFraming === "full"
+                    }
                     onClick={() => {
+                      setExploded(false);
                       setFocusMode(false);
                       setBodyFraming("full");
                       setZoom(1);
@@ -1078,10 +1119,15 @@ export default function App() {
                   </button>
                   <button
                     className={
-                      !focusMode && bodyFraming === "upper" ? "selected" : ""
+                      !exploded && !focusMode && bodyFraming === "upper"
+                        ? "selected"
+                        : ""
                     }
-                    aria-pressed={!focusMode && bodyFraming === "upper"}
+                    aria-pressed={
+                      !exploded && !focusMode && bodyFraming === "upper"
+                    }
                     onClick={() => {
+                      setExploded(false);
                       setFocusMode(false);
                       setBodyFraming("upper");
                       setZoom(1);
@@ -1094,6 +1140,7 @@ export default function App() {
                     className={focusMode ? "selected" : ""}
                     aria-pressed={focusMode}
                     onClick={() => {
+                      setExploded(false);
                       ensureSelectedLayer();
                       setFocusMode(true);
                       setZoom(1);
@@ -1102,6 +1149,25 @@ export default function App() {
                     <Focus size={14} />
                     器官聚焦
                   </button>
+                  {page === "explore" && (
+                    <button
+                      className={exploded ? "selected" : ""}
+                      aria-pressed={exploded}
+                      onClick={() => {
+                        setExploded(true);
+                        setFocusMode(false);
+                        setActiveSystem("all");
+                        if (!inventoryOrgans.includes(selectedOrgan))
+                          setSelectedOrgan("heart");
+                        setZoom(1);
+                        setView("front");
+                        setAutoRotate(false);
+                      }}
+                    >
+                      <LayoutGrid size={14} />
+                      器官拆分
+                    </button>
+                  )}
                 </div>
                 <div className="model-presentation">
                   <span
@@ -1109,7 +1175,7 @@ export default function App() {
                     title="保留人体结构，简化体表性别特征；不用于生殖系统教学。"
                   >
                     <ShieldCheck size={12} />
-                    中性科普外观
+                    {exploded ? "器官分组 · 非解剖位置" : "中性科普外观"}
                   </span>
                   <div
                     className="render-style-switch"
@@ -1152,6 +1218,7 @@ export default function App() {
                         zoom={zoom}
                         resetKey={resetKey}
                         focusMode={focusMode}
+                        exploded={exploded && page === "explore"}
                         bodyFraming={bodyFraming}
                         renderStyle={renderStyle}
                         symptom={page === "symptoms" ? scenarioId : null}
@@ -1256,19 +1323,37 @@ export default function App() {
                       <Layers3 size={14} />
                       显示图层
                     </span>
-                    <span className="layers-hint">按需探索身体结构</span>
-                    <button
-                      onClick={() => {
-                        setLayers({
-                          skin: true,
-                          organs: true,
-                          skeleton: true,
-                          vessels: false,
-                          nerves: false,
-                          muscles: false,
-                        });
-                        setSkinOpacity(0.28);
+                    <select
+                      aria-label="图层预设"
+                      value={
+                        !exploded && !focusMode
+                          ? Object.entries(anatomyPresets).find(
+                              ([, preset]) =>
+                                activeSystem === preset.system &&
+                                Object.entries(preset.layers).every(
+                                  ([id, visible]) => layers[id] === visible,
+                                ),
+                            )?.[0] || "custom"
+                          : "custom"
+                      }
+                      onChange={(event) => {
+                        if (event.target.value !== "custom")
+                          applyPreset(
+                            event.target.value as keyof typeof anatomyPresets,
+                          );
                       }}
+                    >
+                      <option value="custom" disabled>
+                        自定义图层
+                      </option>
+                      {Object.entries(anatomyPresets).map(([id, preset]) => (
+                        <option key={id} value={id}>
+                          {preset.label}预设
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => applyPreset("context")}
                       aria-label="重置图层"
                       title="重置图层"
                     >
@@ -1288,14 +1373,20 @@ export default function App() {
                       return (
                         <button
                           key={l.id}
-                          aria-pressed={layers[l.id]}
-                          className={layers[l.id] ? "selected" : ""}
+                          aria-pressed={
+                            exploded ? l.id === "organs" : layers[l.id]
+                          }
+                          className={
+                            (exploded ? l.id === "organs" : layers[l.id])
+                              ? "selected"
+                              : ""
+                          }
                           onClick={() => toggleLayer(l.id)}
-                          title={`${layers[l.id] ? "隐藏" : "显示"}${l.name}图层`}
+                          title={`${(exploded ? l.id === "organs" : layers[l.id]) ? "隐藏" : "显示"}${l.name}图层`}
                         >
                           <Icon size={15} />
                           {l.name}
-                          {layers[l.id] ? (
+                          {(exploded ? l.id === "organs" : layers[l.id]) ? (
                             <Eye size={11} />
                           ) : (
                             <EyeOff size={11} />
@@ -1315,6 +1406,7 @@ export default function App() {
                       max="100"
                       value={Math.round(skinOpacity * 100)}
                       onChange={(e) => {
+                        setExploded(false);
                         setSkinOpacity(Number(e.target.value) / 100);
                         if (!layers.skin)
                           setLayers((v) => ({ ...v, skin: true }));
