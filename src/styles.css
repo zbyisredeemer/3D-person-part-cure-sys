@@ -2995,6 +2995,15 @@ button:hover:not(:disabled) {
 .explorer-main .page-intro {
   padding: 18px 0;
 }
+.sidebar-empty > button {
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid #dce8ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #3266bb;
+  font-size: 11px;
+}
 .explorer-main .intro-eyebrow,
 .explorer-main .intro-title p,
 .explorer-main .title-dot {

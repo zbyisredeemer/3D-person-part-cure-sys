@@ -185,6 +185,54 @@
 .kv-disease-list {
   display: grid;
   gap: 6px;
+  align-content: start;
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c5d5e5 transparent;
+}
+.kv-organ-filter {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: #657fa2;
+  font-size: 11px;
+}
+.kv-organ-filter > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kv-organ-filter select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 9px;
+  border: 1px solid #e4eaf2;
+  border-radius: 8px;
+  background: #fff;
+  color: #43556f;
+  font: inherit;
+}
+.kv-results-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 8px;
+  color: #7587a0;
+  font-size: 11px;
+}
+.kv-results-summary strong {
+  color: #3266bb;
+}
+.kv-results-summary button {
+  padding: 6px 0 6px 6px;
+  background: transparent;
+  border: 0;
+  color: #3266bb;
+  font-size: 11px;
 }
 .kv-disease-item {
   display: flex;
@@ -1701,16 +1749,19 @@
     scrollbar-width: none;
   }
   .kv-disease-list {
-    display: flex;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 180px;
+    overflow-x: hidden;
+    overflow-y: auto;
     gap: 7px;
     padding: 3px 0 7px;
     scrollbar-width: thin;
     scrollbar-color: #dce4ef transparent;
   }
   .kv-disease-item {
-    min-width: 122px;
-    width: auto;
+    min-width: 0;
+    width: 100%;
     gap: 8px;
     padding: 9px 10px;
     border-color: #edf1f7;
@@ -1728,7 +1779,8 @@
   }
   .kv-disease-item strong {
     font-size: 11px;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .kv-disease-item small {
     font-size: 8px;
@@ -1739,8 +1791,18 @@
     display: none;
   }
   .kv-disease-list > .kv-empty {
+    grid-column: 1 / -1;
     width: 100%;
     padding: 10px;
+  }
+  .kv-organ-filter {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .kv-disease-icon {
+    flex-shrink: 0;
   }
   .kv-detail {
     padding: 22px 18px;

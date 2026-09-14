@@ -52,6 +52,7 @@ import {
 import { organs, systems, scenarios, diseases } from "./data/medical";
 import type { Organ } from "./data/medical";
 import { evaluateRisk } from "./lib/health";
+import { searchOrgans } from "./lib/catalog";
 import {
   DiseaseLibrary,
   DrugLibrary,
@@ -559,7 +560,7 @@ export default function App() {
     try {
       const saved = JSON.parse(localStorage.getItem("atlas-bookmarks") || "[]");
       return Array.isArray(saved)
-        ? saved.filter((x: unknown) => typeof x === "string")
+        ? [...new Set<string>(saved.filter((x: unknown) => typeof x === "string" && organs.some((organ) => organ.id === x)))]
         : [];
     } catch {
       return [];
@@ -569,13 +570,7 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const organ = organs.find((o) => o.id === selectedOrgan) || organs[0];
-  const filteredOrgans = organs.filter(
-    (o) =>
-      `${o.name} ${o.english} ${systems.find((s) => s.id === o.system)?.name} ${systems.find((s) => s.id === o.system)?.english}`
-        .toLowerCase()
-        .includes(search.toLowerCase()) &&
-      (!onlyBookmarks || bookmarks.includes(o.id)),
-  );
+  const filteredOrgans = searchOrgans(search, onlyBookmarks ? bookmarks : undefined);
   const scenario = scenarios.find((s) => s.id === scenarioId) || scenarios[0];
   useEffect(() => {
     try {
@@ -774,7 +769,8 @@ export default function App() {
             title="我的收藏"
             onClick={() => {
               navigate("explore");
-              setOnlyBookmarks((v) => !v);
+              setOnlyBookmarks(true);
+              setSearch("");
               setSidebarOpen(true);
             }}
           >
@@ -905,7 +901,7 @@ export default function App() {
                     <div className="systems-scroll">
                       {search || onlyBookmarks ? (
                         <div className="search-results">
-                          <span className="result-count">
+                          <span className="result-count" role="status">
                             {filteredOrgans.length} 个
                             {onlyBookmarks ? "收藏" : "搜索结果"}
                           </span>
@@ -924,15 +920,20 @@ export default function App() {
                             <div className="sidebar-empty">
                               <Search size={24} />
                               <p>
-                                {onlyBookmarks
+                                {onlyBookmarks && !bookmarks.length
                                   ? "还没有收藏的器官"
-                                  : "暂未找到相关器官"}
+                                  : onlyBookmarks ? "收藏中没有匹配的器官" : "暂未找到相关器官"}
                               </p>
                               <small>
-                                {onlyBookmarks
+                                {onlyBookmarks && !bookmarks.length
                                   ? "点击器官档案右上角的书签保存。"
                                   : "试试“肺”“心脏”或英文名称。"}
                               </small>
+                              <button onClick={() => {
+                                setSearch("");
+                                setOnlyBookmarks(false);
+                                searchRef.current?.focus();
+                              }}>查看全部结构</button>
                             </div>
                           )}
                         </div>

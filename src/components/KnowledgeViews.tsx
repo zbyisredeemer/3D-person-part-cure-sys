@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { diseases, drugs, organs, sources } from "../data/medical";
 import { generateEducationalReply } from "../lib/health";
+import { searchDiseases } from "../lib/catalog";
 import "./knowledge.css";
 
 function SourceLinks({ ids }: { ids: string[] }) {
@@ -134,6 +135,8 @@ export function DiseaseLibrary({
     initialDisease && !initialMatch ? initialDisease : "",
   );
   const [category, setCategory] = useState("全部");
+  const [organId, setOrganId] = useState("all");
+  const listRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState(
     initialMatch?.id || diseases[0]?.id,
   );
@@ -146,6 +149,7 @@ export function DiseaseLibrary({
       );
       setSelectedId(match?.id || "");
       setCategory("全部");
+      setOrganId("all");
       setQuery(match ? "" : initialDisease);
     }
   }, [initialDisease]);
@@ -153,15 +157,31 @@ export function DiseaseLibrary({
     () => ["全部", ...new Set(diseases.map((disease) => disease.category))],
     [],
   );
-  const filtered = diseases.filter(
-    (disease) =>
-      (category === "全部" || disease.category === category) &&
-      `${disease.name} ${disease.summary} ${disease.symptoms.join(" ")}`
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
-  );
+  const filtered = searchDiseases(query, category, organId);
   const selected =
     filtered.find((disease) => disease.id === selectedId) || filtered[0];
+  // Once filtering changes the visible selection, keep that selection when cleared.
+  useEffect(() => {
+    setSelectedId(selected?.id || "");
+  }, [selected?.id]);
+  useEffect(() => {
+    const list = listRef.current;
+    const item = list?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!list || !item) return;
+    const top = item.getBoundingClientRect().top -
+      list.getBoundingClientRect().top + list.scrollTop;
+    if (
+      top < list.scrollTop ||
+      top + item.offsetHeight > list.scrollTop + list.clientHeight
+    ) {
+      list.scrollTop = top;
+    }
+  }, [selected?.id, query, category, organId]);
+  const resetFilters = () => {
+    setQuery("");
+    setCategory("全部");
+    setOrganId("all");
+  };
   const selectedDrug = drugs.find((drug) => drug.id === openDrug);
   return (
     <section className="kv-page kv-diseases" aria-label="疾病百科">
@@ -174,8 +194,29 @@ export function DiseaseLibrary({
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="搜索疾病、症状"
+            placeholder="搜索疾病、症状、器官"
           />
+          <label className="kv-organ-filter">
+            <span>
+              <Layers3 size={14} /> 按器官查看
+            </span>
+            <select
+              value={organId}
+              onChange={(event) => setOrganId(event.target.value)}
+            >
+              <option value="all">全部器官</option>
+              {organs.map((organ) => {
+                const count = diseases.filter((disease) =>
+                  disease.organIds.includes(organ.id),
+                ).length;
+                return count > 0 ? (
+                  <option key={organ.id} value={organ.id}>
+                    {organ.name} · {count}
+                  </option>
+                ) : null;
+              })}
+            </select>
+          </label>
           <div className="kv-filter-row" aria-label="疾病分类">
             {categories.map((item) => (
               <button
@@ -191,7 +232,17 @@ export function DiseaseLibrary({
               </button>
             ))}
           </div>
-          <div className="kv-disease-list" aria-label="疾病列表">
+          <div className="kv-results-summary">
+            <span role="status">
+              找到 <strong>{filtered.length}</strong> / {diseases.length} 个主题
+            </span>
+            {(query || category !== "全部" || organId !== "all") && (
+              <button type="button" onClick={resetFilters}>
+                重置筛选
+              </button>
+            )}
+          </div>
+          <div className="kv-disease-list" aria-label="疾病列表" ref={listRef}>
             {filtered.map((disease) => (
               <button
                 type="button"
@@ -214,13 +265,10 @@ export function DiseaseLibrary({
               <div className="kv-empty">
                 <Search size={25} />
                 <strong>暂未找到相关主题</strong>
-                <p>试试“感冒”“咳嗽”，或切换分类。</p>
+                <p>试试“感冒”“咳嗽”，或调整器官和分类。</p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setQuery("");
-                    setCategory("全部");
-                  }}
+                  onClick={resetFilters}
                 >
                   查看全部疾病
                 </button>
