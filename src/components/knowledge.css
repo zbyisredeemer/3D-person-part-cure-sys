@@ -192,6 +192,13 @@
   scrollbar-width: thin;
   scrollbar-color: #c5d5e5 transparent;
 }
+.kv-mobile-reading {
+  display: none;
+}
+.kv-library-sidebar,
+.kv-detail {
+  scroll-margin-top: 24px;
+}
 .kv-organ-filter {
   display: grid;
   gap: 8px;
@@ -1794,6 +1801,33 @@
     grid-column: 1 / -1;
     width: 100%;
     padding: 10px;
+  }
+  .kv-mobile-reading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 11px;
+    padding: 11px 12px;
+    border: 1px solid #dce8ff;
+    border-radius: 8px;
+    background: #edf3ff;
+    color: #356bb7;
+    font-size: 11px;
+    text-align: left;
+  }
+  .kv-mobile-reading > span {
+    flex: 1;
+  }
+  .kv-mobile-reading > svg {
+    flex-shrink: 0;
+  }
+  .kv-mobile-reading.kv-back-to-catalog {
+    width: fit-content;
+    margin: 0 0 18px;
+    padding: 7px 0;
+    border: 0;
+    background: transparent;
   }
   .kv-organ-filter {
     grid-template-columns: auto minmax(0, 1fr);

@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import {
   Activity,
+  ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
@@ -35,7 +36,12 @@ import {
 } from "lucide-react";
 import { diseases, drugs, organs, sources } from "../data/medical";
 import { generateEducationalReply } from "../lib/health";
-import { searchDiseases } from "../lib/catalog";
+import {
+  searchDiseases,
+  searchDrugs,
+  updateDiseaseCatalogState,
+  type DiseaseCatalogState,
+} from "../lib/catalog";
 import "./knowledge.css";
 
 function SourceLinks({ ids }: { ids: string[] }) {
@@ -121,38 +127,23 @@ function InfoList({
 }
 
 export function DiseaseLibrary({
-  initialDisease,
+  state,
+  onStateChange,
   onSelectOrgan,
 }: {
-  initialDisease?: string;
+  state: DiseaseCatalogState;
+  onStateChange: (next: DiseaseCatalogState) => void;
   onSelectOrgan: (id: string) => void;
 }) {
-  const initialMatch = diseases.find(
-    (disease) =>
-      disease.id === initialDisease || disease.name === initialDisease,
-  );
-  const [query, setQuery] = useState(
-    initialDisease && !initialMatch ? initialDisease : "",
-  );
-  const [category, setCategory] = useState("全部");
-  const [organId, setOrganId] = useState("all");
+  const { query, category, organId, selectedId } = state;
   const listRef = useRef<HTMLDivElement>(null);
-  const [selectedId, setSelectedId] = useState(
-    initialMatch?.id || diseases[0]?.id,
-  );
+  const catalogHeadingRef = useRef<HTMLHeadingElement>(null);
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const catalogHeadingId = useId();
+  const detailHeadingId = useId();
   const [openDrug, setOpenDrug] = useState<string | null>(null);
-  useEffect(() => {
-    if (initialDisease) {
-      const match = diseases.find(
-        (disease) =>
-          disease.id === initialDisease || disease.name === initialDisease,
-      );
-      setSelectedId(match?.id || "");
-      setCategory("全部");
-      setOrganId("all");
-      setQuery(match ? "" : initialDisease);
-    }
-  }, [initialDisease]);
+  const updateState = (changes: Partial<DiseaseCatalogState>) =>
+    onStateChange(updateDiseaseCatalogState(state, changes));
   const categories = useMemo(
     () => ["全部", ...new Set(diseases.map((disease) => disease.category))],
     [],
@@ -160,10 +151,6 @@ export function DiseaseLibrary({
   const filtered = searchDiseases(query, category, organId);
   const selected =
     filtered.find((disease) => disease.id === selectedId) || filtered[0];
-  // Once filtering changes the visible selection, keep that selection when cleared.
-  useEffect(() => {
-    setSelectedId(selected?.id || "");
-  }, [selected?.id]);
   useEffect(() => {
     const list = listRef.current;
     const item = list?.querySelector<HTMLElement>('[aria-current="true"]');
@@ -178,9 +165,18 @@ export function DiseaseLibrary({
     }
   }, [selected?.id, query, category, organId]);
   const resetFilters = () => {
-    setQuery("");
-    setCategory("全部");
-    setOrganId("all");
+    updateState({ query: "", category: "全部", organId: "all" });
+  };
+  const focusSection = (heading: HTMLHeadingElement | null) => {
+    if (!heading) return;
+    heading.focus({ preventScroll: true });
+    const section = heading.closest(".kv-detail, .kv-library-sidebar") || heading;
+    section.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
   };
   const selectedDrug = drugs.find((drug) => drug.id === openDrug);
   return (
@@ -188,12 +184,14 @@ export function DiseaseLibrary({
       <div className="kv-library-layout">
         <aside className="kv-library-sidebar" aria-label="疾病筛选">
           <div className="kv-sidebar-heading">
-            <h2>常见疾病</h2>
+            <h2 id={catalogHeadingId} ref={catalogHeadingRef} tabIndex={-1}>
+              常见疾病
+            </h2>
             <span>{diseases.length} 个主题</span>
           </div>
           <SearchField
             value={query}
-            onChange={setQuery}
+            onChange={(value) => updateState({ query: value })}
             placeholder="搜索疾病、症状、器官"
           />
           <label className="kv-organ-filter">
@@ -202,7 +200,7 @@ export function DiseaseLibrary({
             </span>
             <select
               value={organId}
-              onChange={(event) => setOrganId(event.target.value)}
+              onChange={(event) => updateState({ organId: event.target.value })}
             >
               <option value="all">全部器官</option>
               {organs.map((organ) => {
@@ -226,7 +224,7 @@ export function DiseaseLibrary({
                 className={
                   category === item ? "kv-filter kv-active" : "kv-filter"
                 }
-                onClick={() => setCategory(item)}
+                onClick={() => updateState({ category: item })}
               >
                 {item}
               </button>
@@ -249,7 +247,7 @@ export function DiseaseLibrary({
                 key={disease.id}
                 className={`kv-disease-item${selected?.id === disease.id ? " kv-selected" : ""}`}
                 aria-current={selected?.id === disease.id ? "true" : undefined}
-                onClick={() => setSelectedId(disease.id)}
+                onClick={() => updateState({ selectedId: disease.id })}
               >
                 <span className="kv-disease-icon">
                   <Activity size={19} />
@@ -275,6 +273,18 @@ export function DiseaseLibrary({
               </div>
             )}
           </div>
+          {selected && (
+            <button
+              type="button"
+              className="kv-mobile-reading"
+              aria-controls={detailHeadingId}
+              onClick={() => focusSection(detailHeadingRef.current)}
+            >
+              <BookOpen size={15} />
+              <span>阅读详情 · {selected.name}</span>
+              <ArrowRight size={15} />
+            </button>
+          )}
           <div className="kv-sidebar-note">
             <ShieldCheck size={18} />
             <p>
@@ -286,13 +296,23 @@ export function DiseaseLibrary({
         </aside>
         {selected ? (
           <article className="kv-detail" key={selected.id}>
+            <button
+              type="button"
+              className="kv-mobile-reading kv-back-to-catalog"
+              aria-controls={catalogHeadingId}
+              onClick={() => focusSection(catalogHeadingRef.current)}
+            >
+              <ArrowLeft size={14} /> 返回疾病目录
+            </button>
             <div className="kv-detail-topline">
               <span className="kv-category-label">{selected.category}</span>
               <span>
                 <BookOpen size={13} /> 医学科普
               </span>
             </div>
-            <h2>{selected.name}</h2>
+            <h2 id={detailHeadingId} ref={detailHeadingRef} tabIndex={-1}>
+              {selected.name}
+            </h2>
             <p className="kv-detail-summary">{selected.summary}</p>
             <div className="kv-related-organs">
               {selected.organIds.map((id) => (
@@ -430,13 +450,7 @@ export function DrugLibrary() {
     () => ["全部", ...new Set(drugs.map((drug) => drug.category))],
     [],
   );
-  const filtered = drugs.filter(
-    (drug) =>
-      (category === "全部" || drug.category === category) &&
-      `${drug.name} ${drug.category} ${drug.purpose} ${drug.indications.join(" ")}`
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
-  );
+  const filtered = searchDrugs(query, category);
   const selected = drugs.find((drug) => drug.id === selectedId);
   return (
     <section className="kv-page kv-drugs" aria-label="药物知识">
@@ -1219,9 +1233,12 @@ export function SourceDialog({ onClose }: { onClose: () => void }) {
           模型用于理解器官的相对位置与人体系统关系。显示效果受模型资产、分层方式和浏览器性能影响；细节与个体真实解剖存在差异，不用于临床测量、术前规划或诊断。
         </p>
         <p>
-          器官与骨骼网格来自 Z-Anatomy，由 Gauthier Kervyn
-          等贡献者制作；皮肤来自 DBCLS 的
-          BodyParts3D。模型经过子集提取、配色与近似配准，临床解剖精度未经专业验证。当前使用中性科普外观：弱化皮肤表面的性别特征，隐藏生殖相关结构，保留肾脏、输尿管、膀胱与骨盆；不用于生殖解剖教学。
+          骨骼、肌肉、脑、心脏、腹部器官及血管采用 Human Atlas 项目使用的
+          DBCLS BodyParts3D 4.0 数据，保留源几何并按器官分组展示。肺叶、脊髓及周围神经继续使用
+          Z-Anatomy 补充资产，由 Gauthier Kervyn 等贡献者制作；补充结构为近似配准。
+        </p>
+        <p>
+          体表沿用原有 BodyParts3D 中性皮肤，弱化皮肤表面的性别特征，隐藏生殖相关结构，保留肾脏、输尿管、膀胱与骨盆；不用于生殖解剖教学。新增数据、补充资产和体表分别保留各自许可，临床解剖精度未经专业验证。
         </p>
         <div className="kv-sources">
           <a href="/models/ATTRIBUTION.md" target="_blank" rel="noreferrer">
@@ -1229,11 +1246,19 @@ export function SourceDialog({ onClose }: { onClose: () => void }) {
             <ExternalLink size={11} />
           </a>
           <a
+            href="https://creativecommons.org/licenses/by/4.0/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Human Atlas / BodyParts3D 4.0 · CC BY 4.0
+            <ExternalLink size={11} />
+          </a>
+          <a
             href="https://creativecommons.org/licenses/by-sa/4.0/"
             target="_blank"
             rel="noreferrer"
           >
-            Z-Anatomy · CC BY-SA 4.0
+            Z-Anatomy 补充资产 · CC BY-SA 4.0
             <ExternalLink size={11} />
           </a>
           <a
@@ -1241,7 +1266,7 @@ export function SourceDialog({ onClose }: { onClose: () => void }) {
             target="_blank"
             rel="noreferrer"
           >
-            BodyParts3D · CC BY-SA 2.1 JP
+            BodyParts3D 体表 · CC BY-SA 2.1 JP
             <ExternalLink size={11} />
           </a>
         </div>

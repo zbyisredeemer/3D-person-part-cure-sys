@@ -9,6 +9,12 @@ import { isExcludedEducationalMesh } from "./anatomy/neutralPresentation";
 import { organInventory } from "./anatomy/exploration";
 import { inventoryOrgans } from "./anatomy/viewPresets";
 import {
+  createSourceLoader,
+  optionalAnatomySources,
+  sameLabels,
+  type ProjectedLabel,
+} from "./anatomy/sceneState";
+import {
   anatomyAsset,
   decodeAnatomyResponse,
   INITIAL_ANATOMY_SOURCES,
@@ -19,6 +25,8 @@ import {
   organNames,
   organSystems,
 } from "./anatomy/organMapping";
+
+export type AnatomySceneStatus = "loading" | "ready" | "error";
 
 export interface AnatomySceneProps {
   selectedOrgan: string;
@@ -37,18 +45,11 @@ export interface AnatomySceneProps {
   showLabels: boolean;
   view: "front" | "back" | "left" | "right";
   onReady?: () => void;
+  onStatusChange?: (status: AnatomySceneStatus) => void;
 }
 
 type Tissue = THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
-type Label = {
-  id: string;
-  x: number;
-  y: number;
-  anchorX: number;
-  anchorY: number;
-  left: boolean;
-  selected: boolean;
-};
+type Label = ProjectedLabel;
 type Runtime = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -57,6 +58,7 @@ type Runtime = {
   meshes: Tissue[];
   centers: Map<string, THREE.Vector3>;
   load: (source: string) => Promise<void>;
+  retryLayers: () => void;
   update: () => void;
   orient: (immediate?: boolean) => void;
 };
@@ -70,6 +72,12 @@ const labelIds = [
   "small-intestine",
 ];
 const transparentRaycast = () => undefined;
+const layerNames: Record<string, string> = {
+  muscular: "肌肉",
+  cardiovascular: "血管",
+  nervous: "神经",
+  cranial: "颅神经",
+};
 
 export default function AnatomyScene(props: AnatomySceneProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -81,14 +89,23 @@ export default function AnatomyScene(props: AnatomySceneProps) {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const [layerLoading, setLayerLoading] = useState(false);
+  const [layerError, setLayerError] = useState("");
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     let disposed = false;
+    let contextLost = false;
     const abort = new AbortController();
     let frame = 0;
     let lastLabelUpdate = 0;
+    let renderedLabels: Label[] = [];
+    setLabels([]);
+    setLoaded(0);
+    setError("");
+    setLayerLoading(false);
+    setLayerError("");
+    latest.current.onStatusChange?.("loading");
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, 1, 0.025, 20);
     const renderer = (() => {
@@ -100,12 +117,11 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         });
       } catch {
         setError("当前浏览器未能启动 3D 显示，请开启硬件加速后重试。");
+        latest.current.onStatusChange?.("error");
         return null;
       }
     })();
     if (!renderer) return;
-    setError("");
-    setLoaded(0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -202,7 +218,8 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     const organBounds = new Map<string, THREE.Box3>();
     const offsets = new Map<string, THREE.Vector3>();
     let inventory = organInventory(organBounds, false);
-    const sources = new Map<string, Promise<void>>();
+    const sources = createSourceLoader(loadSource, refreshLayerStatus);
+    const load = sources.load;
     const targetPosition = new THREE.Vector3();
     const targetLook = new THREE.Vector3();
     const orbitOffset = new THREE.Vector3();
@@ -211,6 +228,29 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     let transitioning = false;
     let initialReady = false;
     let hoverId = "";
+
+    function refreshLayerStatus() {
+      if (disposed || contextLost) return;
+      const requested = optionalAnatomySources(latest.current.layers);
+      setLayerLoading(
+        requested.some((source) => sources.status(source) === "loading"),
+      );
+      const failed = requested.filter(
+        (source) => sources.status(source) === "error",
+      );
+      setLayerError(
+        failed.length
+          ? `${failed.map((source) => layerNames[source]).join("、")}图层未加载成功，其他模型仍可浏览。`
+          : "",
+      );
+    }
+
+    function retryLayers() {
+      for (const source of optionalAnatomySources(latest.current.layers)) {
+        if (sources.status(source) === "error")
+          sources.retry(source).catch(() => {});
+      }
+    }
 
     function orient(immediate = false) {
       const p = latest.current;
@@ -290,6 +330,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     }
 
     function update() {
+      if (disposed || contextLost) return;
       const p = latest.current;
       const detailed = p.renderStyle !== "soft";
       inventory = organInventory(organBounds, el!.clientWidth < 500);
@@ -402,35 +443,18 @@ export default function AnatomyScene(props: AnatomySceneProps) {
         if (wasTransparent !== mat.transparent) mat.needsUpdate = true;
       }
       renderer!.shadowMap.needsUpdate = true;
-      const optional = [
-        p.layers.muscles ? "muscular" : "",
-        p.layers.vessels ? "cardiovascular" : "",
-        p.layers.nerves ? "nervous" : "",
-        p.layers.nerves ? "cranial" : "",
-      ].filter(Boolean);
-      if (optional.some((s) => !sources.has(s))) {
-        setLayerLoading(true);
-        Promise.all(optional.map(load))
-          .then(() => {
-            if (!disposed) setLayerLoading(false);
-          })
-          .catch(() => {
-            if (!disposed) {
-              setLayerLoading(false);
-              setError("此图层暂未加载成功。请检查连接并重试。");
-            }
-          });
-      }
+      for (const source of optionalAnatomySources(p.layers))
+        if (sources.status(source) === "idle") load(source).catch(() => {});
+      refreshLayerStatus();
     }
 
-    function load(source: string): Promise<void> {
-      if (sources.has(source)) return sources.get(source)!;
+    function loadSource(source: string): Promise<void> {
       const asset = anatomyAsset(source);
-      const promise = fetch(asset.url, { signal: abort.signal })
+      return fetch(asset.url, { signal: abort.signal })
         .then(decodeAnatomyResponse)
         .then((buffer) => loader.parseAsync(buffer, "/models/"))
         .then((gltf) => {
-          if (disposed) {
+          if (disposed || contextLost) {
             gltf.scene.traverse((o) => {
               if (o instanceof THREE.Mesh) {
                 o.geometry.dispose();
@@ -516,13 +540,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
             boxes.has(latest.current.selectedOrgan)
           )
             orient();
-        })
-        .catch((error) => {
-          sources.delete(source);
-          throw error;
         });
-      sources.set(source, promise);
-      return promise;
     }
 
     runtime.current = {
@@ -533,6 +551,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       meshes,
       centers,
       load,
+      retryLayers,
       update,
       orient,
     };
@@ -602,11 +621,24 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     renderer.domElement.addEventListener("pointerdown", onDown);
     renderer.domElement.addEventListener("pointerup", onUp);
     renderer.domElement.addEventListener("pointermove", onMove);
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      contextLost = true;
+      initialReady = false;
+      abort.abort();
+      cancelAnimationFrame(frame);
+      setLabels([]);
+      setLayerLoading(false);
+      setLayerError("");
+      setError("3D 显示已中断，请重新加载以恢复模型。");
+      latest.current.onStatusChange?.("error");
+    };
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost);
     const clock = new THREE.Clock();
     const zeroOffset = new THREE.Vector3();
     const localPosition = new THREE.Vector3();
     function animate() {
-      if (disposed) return;
+      if (disposed || contextLost) return;
       frame = requestAnimationFrame(animate);
       const dt = clock.getDelta();
       const t = clock.elapsedTime;
@@ -800,6 +832,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
                 : sideLabels[i + 1].y - 35,
             );
         }
+        let nextLabels = projected;
         if (p.exploded) {
           // Oblique/side views can project different grid columns onto each other.
           const visible: Label[] = [];
@@ -815,8 +848,12 @@ export default function AnatomyScene(props: AnatomySceneProps) {
             )
               visible.push(label);
           }
-          setLabels(projected.filter((label) => visible.includes(label)));
-        } else setLabels(projected);
+          nextLabels = projected.filter((label) => visible.includes(label));
+        }
+        if (!sameLabels(renderedLabels, nextLabels)) {
+          renderedLabels = nextLabels;
+          setLabels(nextLabels);
+        }
       }
     }
     animate();
@@ -825,7 +862,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       INITIAL_ANATOMY_SOURCES.map((source) =>
         load(source).then(() => {
           finished++;
-          if (!disposed)
+          if (!disposed && !contextLost)
             setLoaded(
               Math.round((finished / INITIAL_ANATOMY_SOURCES.length) * 100),
             );
@@ -833,15 +870,17 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       ),
     )
       .then(() => {
-        if (disposed) return;
+        if (disposed || contextLost) return;
         initialReady = true;
         orient(true);
         latest.current.onReady?.();
+        latest.current.onStatusChange?.("ready");
       })
       .catch((e) => {
-        if (!disposed) {
+        if (!disposed && !contextLost) {
           console.error("Anatomy model loading failed", e);
           setError("解剖模型加载失败，请点击重新加载。");
+          latest.current.onStatusChange?.("error");
         }
       });
     return () => {
@@ -853,6 +892,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
       renderer.domElement.removeEventListener("pointerdown", onDown);
       renderer.domElement.removeEventListener("pointerup", onUp);
       renderer.domElement.removeEventListener("pointermove", onMove);
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       scene.traverse((o) => {
         if (o instanceof THREE.Mesh) {
           o.geometry.dispose();
@@ -906,6 +946,7 @@ export default function AnatomyScene(props: AnatomySceneProps) {
     >
       {loaded < 100 && !error && (
         <div
+          role="status"
           style={{
             position: "absolute",
             left: "50%",
@@ -925,8 +966,9 @@ export default function AnatomyScene(props: AnatomySceneProps) {
           正在构建人体图谱 · {loaded}%
         </div>
       )}
-      {layerLoading && !error && (
+      {layerLoading && !error && !layerError && loaded === 100 && (
         <div
+          role="status"
           style={{
             position: "absolute",
             bottom: 91,
@@ -936,6 +978,45 @@ export default function AnatomyScene(props: AnatomySceneProps) {
           }}
         >
           正在加载解剖图层…
+        </div>
+      )}
+      {layerError && !error && (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            bottom: 28,
+            left: 16,
+            right: 16,
+            maxWidth: 380,
+            margin: "0 auto",
+            padding: "10px 14px",
+            border: "1px solid #e5d6b7",
+            borderRadius: 9,
+            background: "rgba(255,251,242,.96)",
+            color: "#7b6846",
+            fontSize: 12,
+            zIndex: 4,
+          }}
+        >
+          <p style={{ margin: "0 0 8px" }}>{layerError}</p>
+          {layerLoading && (
+            <p style={{ margin: "0 0 8px" }}>其他解剖图层仍在加载…</p>
+          )}
+          <button
+            type="button"
+            onClick={() => runtime.current?.retryLayers()}
+            style={{
+              border: "1px solid #dcc99d",
+              borderRadius: 6,
+              padding: "6px 10px",
+              background: "#fff",
+              color: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            重试失败图层
+          </button>
         </div>
       )}
       {error && (

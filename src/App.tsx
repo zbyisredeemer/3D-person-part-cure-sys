@@ -52,7 +52,8 @@ import {
 import { organs, systems, scenarios, diseases } from "./data/medical";
 import type { Organ } from "./data/medical";
 import { evaluateRisk } from "./lib/health";
-import { searchOrgans } from "./lib/catalog";
+import { createDiseaseCatalogState, searchOrgans } from "./lib/catalog";
+import type { AnatomySceneStatus } from "./components/AnatomyScene";
 import {
   DiseaseLibrary,
   DrugLibrary,
@@ -97,7 +98,7 @@ const flagOptions = [
 ];
 
 class SceneErrorBoundary extends Component<
-  { children: ReactNode; resetKey: number },
+  { children: ReactNode; resetKey: number; onError: () => void; onRetry: () => void },
   { hasError: boolean }
 > {
   state = { hasError: false };
@@ -106,6 +107,7 @@ class SceneErrorBoundary extends Component<
   }
   componentDidCatch(error: Error, _info: ErrorInfo) {
     console.error("Anatomy renderer:", error);
+    this.props.onError();
   }
   componentDidUpdate(prev: { resetKey: number }) {
     if (prev.resetKey !== this.props.resetKey && this.state.hasError)
@@ -119,6 +121,9 @@ class SceneErrorBoundary extends Component<
         <p>
           请检查网络和浏览器的 WebGL 支持。你仍可使用左侧目录探索全部器官知识。
         </p>
+        <button type="button" onClick={this.props.onRetry}>
+          <RotateCcw size={15} /> 重新加载 3D 场景
+        </button>
       </div>
     ) : (
       this.props.children
@@ -547,13 +552,13 @@ export default function App() {
   );
   const [showLabels, setShowLabels] = useState(true);
   const [view, setView] = useState<View>("front");
-  const [sceneReady, setSceneReady] = useState(false);
+  const [sceneStatus, setSceneStatus] = useState<AnatomySceneStatus>("loading");
   const [sceneExpanded, setSceneExpanded] = useState(false);
   const [scenarioId, setScenarioId] = useState("chest-pain");
   const [flags, setFlags] = useState<string[]>(["chest-pain"]);
   const [modal, setModal] = useState<"help" | "sources" | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [initialDisease, setInitialDisease] = useState("");
+  const [diseaseCatalog, setDiseaseCatalog] = useState(() => createDiseaseCatalogState());
   const [question, setQuestion] = useState("");
   const [toast, setToast] = useState("");
   const [bookmarks, setBookmarks] = useState<string[]>(() => {
@@ -568,10 +573,66 @@ export default function App() {
   });
   const [onlyBookmarks, setOnlyBookmarks] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarTriggerRef = useRef<HTMLElement | null>(null);
+  const [compactNavigation, setCompactNavigation] = useState(
+    () => window.matchMedia("(max-width: 880px)").matches,
+  );
   const stageRef = useRef<HTMLDivElement>(null);
   const organ = organs.find((o) => o.id === selectedOrgan) || organs[0];
   const filteredOrgans = searchOrgans(search, onlyBookmarks ? bookmarks : undefined);
   const scenario = scenarios.find((s) => s.id === scenarioId) || scenarios[0];
+  const sidebarIsDialog = compactNavigation && sidebarOpen &&
+    (page === "explore" || page === "symptoms");
+  useEffect(() => {
+    if (page !== "explore" && page !== "symptoms") setSceneStatus("loading");
+  }, [page]);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 880px)");
+    const update = () => setCompactNavigation(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!sidebarIsDialog) return;
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+    const previousFocus = sidebarTriggerRef.current ||
+      (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    (searchRef.current || sidebar.querySelector<HTMLButtonElement>(".mobile-close"))?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSidebarOpen(false);
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...sidebar.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]',
+      )].filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) {
+        event.preventDefault();
+        sidebar.focus();
+      } else if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (previousFocus?.isConnected && previousFocus.getClientRects().length > 0)
+        previousFocus.focus({ preventScroll: true });
+    };
+  }, [sidebarIsDialog]);
   useEffect(() => {
     try {
       localStorage.setItem("atlas-bookmarks", JSON.stringify(bookmarks));
@@ -586,26 +647,33 @@ export default function App() {
   }, [toast]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || modal ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       if (e.key === "Escape") {
         setSceneExpanded(false);
         setSidebarOpen(false);
       }
       if (
         e.key === "/" &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement)
+        !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !(e.target instanceof HTMLElement &&
+          (e.target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")))
       ) {
         e.preventDefault();
         setPage("explore");
+        setSceneExpanded(false);
+        sidebarTriggerRef.current = document.activeElement instanceof HTMLElement
+          ? document.activeElement : null;
         setSidebarOpen(true);
         setTimeout(() => searchRef.current?.focus(), 0);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [modal]);
   const navigate = (p: Page) => {
     if (p !== "explore") setExploded(false);
+    if (p === "symptoms") setLayers((previous) => ({ ...previous, organs: true }));
     setPage(p);
     setSidebarOpen(false);
     setSceneExpanded(false);
@@ -641,7 +709,7 @@ export default function App() {
     }
   };
   const showDisease = (name: string) => {
-    setInitialDisease(name);
+    setDiseaseCatalog(createDiseaseCatalogState(name));
     navigate("diseases");
   };
   const ask = (q: string) => {
@@ -767,10 +835,11 @@ export default function App() {
             className="avatar"
             aria-label="查看收藏的器官"
             title="我的收藏"
-            onClick={() => {
+            onClick={(event) => {
               navigate("explore");
               setOnlyBookmarks(true);
               setSearch("");
+              sidebarTriggerRef.current = event.currentTarget;
               setSidebarOpen(true);
             }}
           >
@@ -840,7 +909,12 @@ export default function App() {
               className={`exploration-workspace ${sceneExpanded ? "expanded-workspace" : ""}`}
             >
               <aside
+                ref={sidebarRef}
+                id="anatomy-directory"
                 className={`anatomy-sidebar ${sidebarOpen ? "mobile-open" : ""}`}
+                role={sidebarIsDialog ? "dialog" : undefined}
+                aria-modal={sidebarIsDialog || undefined}
+                tabIndex={-1}
                 aria-label={
                   page === "explore" ? "人体系统与器官目录" : "症状选择"
                 }
@@ -1064,6 +1138,7 @@ export default function App() {
                 <button
                   className="sidebar-backdrop"
                   aria-label="关闭目录"
+                  tabIndex={-1}
                   onClick={() => setSidebarOpen(false)}
                 />
               )}
@@ -1076,8 +1151,13 @@ export default function App() {
                   <div className="stage-breadcrumb">
                     <button
                       className="mobile-menu"
-                      onClick={() => setSidebarOpen(true)}
+                      onClick={(event) => {
+                        sidebarTriggerRef.current = event.currentTarget;
+                        setSidebarOpen(true);
+                      }}
                       aria-label="打开器官目录"
+                      aria-expanded={sidebarOpen}
+                      aria-controls="anatomy-directory"
                     >
                       <Menu size={18} />
                     </button>
@@ -1198,7 +1278,14 @@ export default function App() {
                   </div>
                 </div>
                 <div className="model-frame">
-                  <SceneErrorBoundary resetKey={resetKey}>
+                  <SceneErrorBoundary
+                    resetKey={resetKey}
+                    onError={() => setSceneStatus("error")}
+                    onRetry={() => {
+                      setSceneStatus("loading");
+                      setResetKey((key) => key + 1);
+                    }}
+                  >
                     <Suspense
                       fallback={
                         <div className="scene-loading">
@@ -1225,7 +1312,7 @@ export default function App() {
                         symptom={page === "symptoms" ? scenarioId : null}
                         showLabels={showLabels}
                         view={view}
-                        onReady={() => setSceneReady(true)}
+                        onStatusChange={setSceneStatus}
                       />
                     </Suspense>
                   </SceneErrorBoundary>
@@ -1432,9 +1519,10 @@ export default function App() {
                     滚轮缩放 <i />
                     点击探索
                   </span>
-                  <span className="model-quality">
-                    <span className={sceneReady ? "ready-dot" : ""} />
-                    {sceneReady ? "解剖模型已就绪" : "加载解剖数据"}
+                  <span className="model-quality" role="status">
+                    <span className={sceneStatus === "ready" ? "ready-dot" : ""} />
+                    {sceneStatus === "ready" ? "解剖模型已就绪" :
+                      sceneStatus === "error" ? "模型暂不可用，可重新加载" : "加载解剖数据"}
                   </span>
                 </div>
               </section>
@@ -1508,7 +1596,8 @@ export default function App() {
           </>
         ) : page === "diseases" ? (
           <DiseaseLibrary
-            initialDisease={initialDisease}
+            state={diseaseCatalog}
+            onStateChange={setDiseaseCatalog}
             onSelectOrgan={(id) => {
               selectOrgan(id);
               navigate("explore");

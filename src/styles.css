@@ -858,6 +858,17 @@ button:hover:not(:disabled) {
   line-height: 1.8;
   max-width: 260px;
 }
+.scene-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbdcf0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #4d78b3;
+  font-size: 12px;
+}
 .stage-axis-label {
   position: absolute;
   left: 22px;
@@ -2483,13 +2494,26 @@ button:hover:not(:disabled) {
   }
   .anatomy-sidebar.mobile-open {
     display: flex;
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 235px;
-    z-index: 15;
+    width: min(300px, calc(100vw - 40px));
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 101;
     box-shadow: 5px 0 25px #263e6215;
+  }
+  .anatomy-sidebar.mobile-open > :not(.systems-scroll):not(.symptom-options) {
+    flex-shrink: 0;
+  }
+  .anatomy-sidebar.mobile-open .systems-scroll,
+  .anatomy-sidebar.mobile-open .symptom-options {
+    flex: 1;
+    min-height: 100px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .mobile-menu {
     display: grid;
@@ -2508,9 +2532,9 @@ button:hover:not(:disabled) {
   }
   .sidebar-backdrop {
     display: block;
-    position: absolute;
+    position: fixed;
     inset: 0;
-    z-index: 14;
+    z-index: 100;
     background: #38577726;
     backdrop-filter: blur(2px);
   }
@@ -2705,17 +2729,6 @@ button:hover:not(:disabled) {
   .anatomy-stage {
     height: 630px;
     flex-shrink: 0;
-    border-radius: 11px 11px 0 0;
-  }
-  .anatomy-sidebar.mobile-open {
-    height: 630px;
-    bottom: auto;
-    border-radius: 11px 0 0 0;
-    position: absolute;
-  }
-  .sidebar-backdrop {
-    height: 630px;
-    bottom: auto;
     border-radius: 11px 11px 0 0;
   }
   .model-frame {
