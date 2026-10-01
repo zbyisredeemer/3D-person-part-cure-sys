@@ -6,6 +6,12 @@ An interactive, Chinese-language 3D human anatomy and health education applicati
 
 **Educational demonstration only.** This is not a clinically validated product, diagnostic tool or substitute for professional medical care. Model registration and semantic groupings have limitations; professional anatomical and medical review is still needed.
 
+## Download and run
+
+Download `zhiti-atlas-<version>.tar.gz` and its `.sha256` file from [Releases](https://github.com/zbyisredeemer/3D-person-part-cure-sys/releases/latest). Extract it and run `node start.mjs` with Node.js 22.12+ (22 or 24 recommended). Open http://127.0.0.1:8787. No dependency installation or build is needed. The archive includes all models and license notices, and defaults to local education mode.
+
+For source development, use the workflow below. See the [deployment guide](docs/DEPLOYMENT.md) for checksums, upgrades and troubleshooting.
+
 ## Quick start
 
 Use Node.js 22.12+ (Node.js 22 recommended):

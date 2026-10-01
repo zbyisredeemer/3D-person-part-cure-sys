@@ -11,6 +11,18 @@
 >
 > **使用范围：** 医学科普演示，不能替代医生诊断或治疗。公开部署在线 AI 前须增加身份认证和预算控制，详见 [安全政策](SECURITY.md)。
 
+## 直接下载运行（推荐体验）
+
+从 [Releases](https://github.com/zbyisredeemer/3D-person-part-cure-sys/releases/latest) 下载 `zhiti-atlas-<版本>.tar.gz` 和对应 `.sha256`，解压后运行：
+
+```bash
+node start.mjs
+```
+
+需要 Node.js 22.12+（推荐 22 或 24），**无需 `npm install` 或重新构建**。访问 **http://127.0.0.1:8787**；按 Ctrl+C 停止。发布包包含模型与版权声明，默认本地科普模式。可从任意目录通过 `start.mjs` 的绝对路径启动。
+
+发布包校验、升级和常见故障见 [部署指南](docs/DEPLOYMENT.md)。修改代码请使用下面的源码启动方式。
+
 ## 本地启动
 
 需要 Node.js 22.12 或更高版本，推荐使用 Node.js 22（`.nvmrc`）。
@@ -153,3 +165,5 @@ tests/                          规则、内容和接口测试
 运行 `npm run check` 完成测试、类型检查、生产构建及 HTTP 冒烟验证。GitHub Actions 同时验证 Node.js 22/24 与 Docker 部署，Dependabot 定期检查依赖更新。`package.json` 的 `private: true` 用于防止误发布到 npm，不影响 GitHub 开源。
 
 欢迎通过 [Issue](https://github.com/zbyisredeemer/3D-person-part-cure-sys/issues) 提交软件问题或资料纠错；贡献步骤见 [CONTRIBUTING.md](CONTRIBUTING.md)，隐私说明见 [docs/PRIVACY.md](docs/PRIVACY.md)。医学与解剖内容仍需要专业人员审核。
+
+维护者可运行 `npm run release:pack` 生成可运行压缩包和 SHA-256 校验文件；构建后运行 `npm run release:check` 会重新打包，并在独立临时目录解压、启动和验证。产物位于 Git 忽略的 `artifacts/releases/`。

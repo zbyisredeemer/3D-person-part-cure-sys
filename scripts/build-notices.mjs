@@ -5,7 +5,7 @@ import { join } from "node:path";
 const lock = JSON.parse(await readFile("package-lock.json", "utf8"));
 const sections = [
   "Third-party production dependencies installed for this build. Inclusion does not imply every package is used at runtime.",
-  "Anatomical assets have separate terms: see /NOTICE and /models/ATTRIBUTION.md.",
+  "Anatomical assets have separate terms: see /NOTICE.txt and /models/ATTRIBUTION.md.",
 ];
 for (const [directory, metadata] of Object.entries(lock.packages).sort()) {
   if (!directory || metadata.dev) continue;

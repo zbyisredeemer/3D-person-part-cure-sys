@@ -34,6 +34,8 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - run: npm run check
+      - name: Verify ready-to-run release archive
+        run: npm run release:check
 
   docker:
     name: Docker production

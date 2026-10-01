@@ -1,45 +1,63 @@
-// Run the existing HTTP smoke checks against an isolated local production server.
+// Verify the exact child process, using an OS-assigned port and IPC readiness.
 import { spawn } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const port = process.env.SMOKE_PORT || "18787";
-const base = `http://127.0.0.1:${port}`;
-const env = {
-  ...process.env,
-  API_HOST: "127.0.0.1",
-  API_PORT: port,
-  ALLOWED_ORIGINS: base,
-  OPENAI_API_KEY: "",
-  OPENAI_MODEL: "",
-  NODE_ENV: "production",
-};
-const server = spawn(process.execPath, ["dist-server/index.cjs"], { env, stdio: "inherit" });
-const stopped = new Promise((resolve, reject) => {
-  server.once("exit", resolve);
-  server.once("error", reject);
-});
-try {
-  let ready = false;
-  for (let attempt = 0; attempt < 60; attempt++) {
-    if (server.exitCode !== null) throw new Error("Production server exited before readiness");
-    try {
-      const response = await fetch(`${base}/api/health/status`, { signal: AbortSignal.timeout(500) });
-      ready = response.ok && (await response.json()).mode === "local";
-    } catch { /* Server is starting. */ }
-    if (ready) break;
-    await delay(250);
+export async function verifyProduction(entry, cwd = process.cwd()) {
+  const origin = "http://127.0.0.1";
+  const env = {
+    ...process.env,
+    API_HOST: "127.0.0.1",
+    API_PORT: "0",
+    ALLOWED_ORIGINS: origin,
+    OPENAI_API_KEY: "",
+    OPENAI_MODEL: "",
+    NODE_ENV: "production",
+  };
+  const server = spawn(process.execPath, [resolve(entry)], {
+    cwd, env, stdio: ["ignore", "inherit", "inherit", "ipc"],
+  });
+  const stopped = new Promise((done) => {
+    server.once("exit", done);
+    server.once("error", done);
+  });
+  try {
+    const port = await new Promise((done, fail) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        server.off("message", ready);
+        server.off("exit", exited);
+        server.off("error", failed);
+      };
+      const failed = (error) => { cleanup(); fail(error); };
+      const exited = (code) => failed(new Error(`Production server exited before readiness (${code})`));
+      const ready = (message) => {
+        if (message?.type !== "atlas:ready" || !Number.isInteger(message.port)) return;
+        cleanup();
+        done(message.port);
+      };
+      const timer = setTimeout(() => failed(new Error("Production server readiness timed out")), 15000);
+      server.on("message", ready);
+      server.once("exit", exited);
+      server.once("error", failed);
+    });
+    const child = spawn(process.execPath, [fileURLToPath(new URL("smoke.mjs", import.meta.url))], {
+      env: { ...env, SMOKE_URL: `http://127.0.0.1:${port}`, SMOKE_ORIGIN: origin },
+      stdio: "inherit",
+    });
+    const code = await new Promise((done, fail) => {
+      child.once("exit", done);
+      child.once("error", fail);
+    });
+    if (code !== 0) throw new Error(`Smoke checks failed (${code})`);
+  } finally {
+    server.kill("SIGTERM");
+    const timer = setTimeout(() => server.kill("SIGKILL"), 12000);
+    await stopped;
+    clearTimeout(timer);
   }
-  if (!ready) throw new Error("Production server did not become ready");
-  const child = spawn(process.execPath, ["scripts/smoke.mjs"], {
-    env: { ...env, SMOKE_URL: base },
-    stdio: "inherit",
-  });
-  const code = await new Promise((resolve, reject) => {
-    child.once("exit", resolve);
-    child.once("error", reject);
-  });
-  if (code !== 0) throw new Error(`Smoke checks failed (${code})`);
-} finally {
-  server.kill("SIGTERM");
-  await stopped;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await verifyProduction("dist-server/index.cjs");
 }

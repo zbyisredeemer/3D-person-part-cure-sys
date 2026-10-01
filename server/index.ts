@@ -41,6 +41,10 @@ const mime: Record<string, string> = {
 };
 
 const server = createServer(async (req, res) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   const json = (status: number, value: unknown) => {
     res.writeHead(status, {
       "Content-Type": "application/json; charset=utf-8",
@@ -50,13 +54,28 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(value));
   };
   try {
-    const path = new URL(req.url || "/", "http://localhost").pathname;
-    if (path === "/api/health/status" && req.method === "GET") {
+    let path: string;
+    let decodedPath: string;
+    try {
+      path = new URL(req.url || "/", "http://localhost").pathname;
+      decodedPath = decodeURIComponent(path);
+      if (decodedPath.includes("\0")) throw new Error("Invalid path");
+    } catch {
+      json(400, { error: "请求路径无效。" });
+      return;
+    }
+    if (path === "/api/health/status") {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.setHeader("Allow", "GET, HEAD");
+        json(405, { error: "仅支持 GET 或 HEAD 请求。" });
+        return;
+      }
       json(200, { mode: isOnline(config) ? "online" : "local" });
       return;
     }
     if (path === "/api/health/chat") {
       if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
         json(405, { error: "仅支持 POST 请求。" });
         return;
       }
@@ -68,7 +87,10 @@ const server = createServer(async (req, res) => {
         json(403, { error: "不接受跨站请求。" });
         return;
       }
-      if (!req.headers["content-type"]?.startsWith("application/json")) {
+      if (
+        req.headers["content-type"]?.split(";", 1)[0].trim().toLowerCase() !==
+        "application/json"
+      ) {
         json(415, { error: "请使用 JSON 格式。" });
         return;
       }
@@ -109,10 +131,11 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (!["GET", "HEAD"].includes(req.method || "")) {
+      res.setHeader("Allow", "GET, HEAD");
       json(405, { error: "此路径不支持该请求。" });
       return;
     }
-    let filename = resolve(root, `.${decodeURIComponent(path)}`);
+    let filename = resolve(root, `.${decodedPath}`);
     if (!filename.startsWith(root + sep) && filename !== root) {
       json(403, { error: "路径无效。" });
       return;
@@ -162,8 +185,12 @@ const shutdown = () => {
 };
 process.once("SIGTERM", shutdown);
 process.once("SIGINT", shutdown);
-server.listen(port, host, () =>
+server.listen(port, host, () => {
+  const address = server.address();
+  if (!address || typeof address === "string") return;
   console.log(
-    `Atlas API: http://${host}:${port} (${isOnline(config) ? "online AI" : "local education"})`,
-  ),
-);
+    `Atlas API: http://${host}:${address.port} (${isOnline(config) ? "online AI" : "local education"})`,
+  );
+  // An IPC parent can verify this exact process is listening, without port polling.
+  process.send?.({ type: "atlas:ready", port: address.port });
+});
