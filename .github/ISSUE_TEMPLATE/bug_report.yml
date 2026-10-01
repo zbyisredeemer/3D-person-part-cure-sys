@@ -1,0 +1,17 @@
+name: Bug report / 问题反馈
+description: 报告可以复现的软件问题，请勿提交个人病历或密钥。
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 包含预期与实际结果，可附不含隐私的截图。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境 / Environment
+      description: 版本或提交、系统、浏览器、Node 或 Docker 版本、启动方式。
+    validations:
+      required: true

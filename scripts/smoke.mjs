@@ -19,6 +19,16 @@ assert.equal(
   "JS asset",
 );
 
+for (const [path, expected] of [
+  ["/LICENSE.txt", "MIT License"],
+  ["/NOTICE.txt", "CC BY-NC"],
+  ["/THIRD_PARTY_NOTICES.txt", "@react-three/fiber"],
+]) {
+  const notice = await request(path);
+  assert.equal(notice.status, 200, `${path} is distributed`);
+  assert.ok((await notice.text()).includes(expected), `${path} license content`);
+}
+
 const status = await request("/api/health/status");
 assert.equal(status.status, 200);
 assert.ok(["local", "online"].includes((await status.json()).mode));
@@ -62,5 +72,5 @@ const rejected = await request("/api/health/chat", {
 });
 assert.equal(rejected.status, 403, "untrusted origin rejected");
 console.log(
-  "Smoke checks passed: frontend, API, model, decoder, local reply and origin policy.",
+  "Smoke checks passed: frontend, licenses, API, model, decoder, local reply and origin policy.",
 );

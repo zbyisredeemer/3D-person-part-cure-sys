@@ -1,12 +1,23 @@
 # 知体 Atlas
 
+[![CI](https://github.com/zbyisredeemer/3D-person-part-cure-sys/actions/workflows/ci.yml/badge.svg)](https://github.com/zbyisredeemer/3D-person-part-cure-sys/actions/workflows/ci.yml)
+[![Code license: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
+
+[English](README.en.md) · [参与贡献](CONTRIBUTING.md) · [安全政策](SECURITY.md) · [更新记录](CHANGELOG.md) · [发布版本](https://github.com/zbyisredeemer/3D-person-part-cure-sys/releases)
+
 蓝白色交互式人体医学科普系统。使用真实解剖网格探索身体结构，配合器官档案、症状区域动画、疾病与药物知识，以及可选在线 AI 的健康科普助手。
+
+> **许可范围：** 原创应用代码、脚本与文档采用 [MIT](LICENSE)；3D 模型和解码器保留独立许可。历史模型包含带非商业条款的上游组件声明，**完整素材包不承诺全部可商用**。请阅读 [NOTICE](NOTICE) 和 [模型授权明细](public/models/ATTRIBUTION.md)。
+>
+> **使用范围：** 医学科普演示，不能替代医生诊断或治疗。公开部署在线 AI 前须增加身份认证和预算控制，详见 [安全政策](SECURITY.md)。
 
 ## 本地启动
 
-需要 Node.js 22 或更高版本。
+需要 Node.js 22.12 或更高版本，推荐使用 Node.js 22（`.nvmrc`）。
 
 ```bash
+git clone https://github.com/zbyisredeemer/3D-person-part-cure-sys.git
+cd 3D-person-part-cure-sys
 npm ci
 npm run dev
 ```
@@ -136,3 +147,9 @@ tests/                          规则、内容和接口测试
 移动端器官目录打开时将键盘焦点限定在目录内，按 Escape 关闭后返回原入口；输入框与弹窗内不会误触发全局 `/` 搜索快捷键。进入症状页时自动启用器官图层，避免沿用骨骼或肌肉预设后隐藏相关器官。
 
 3D 状态随每次加载更新；肌肉、血管或神经等可选图层下载失败时，已加载模型仍可浏览，点击“重试失败图层”只重试失败资源。WebGL 显示中断时提供重新加载入口。器官标注只在内容或可见位置变化时更新，减少静止或隐藏标注时的界面渲染。
+
+## 维护与贡献
+
+运行 `npm run check` 完成测试、类型检查、生产构建及 HTTP 冒烟验证。GitHub Actions 同时验证 Node.js 22/24 与 Docker 部署，Dependabot 定期检查依赖更新。`package.json` 的 `private: true` 用于防止误发布到 npm，不影响 GitHub 开源。
+
+欢迎通过 [Issue](https://github.com/zbyisredeemer/3D-person-part-cure-sys/issues) 提交软件问题或资料纠错；贡献步骤见 [CONTRIBUTING.md](CONTRIBUTING.md)，隐私说明见 [docs/PRIVACY.md](docs/PRIVACY.md)。医学与解剖内容仍需要专业人员审核。

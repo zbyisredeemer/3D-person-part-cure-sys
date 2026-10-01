@@ -1,0 +1,32 @@
+Zhiti Atlas / 知体 Atlas
+Copyright (c) 2026 zbyisredeemer and contributors
+
+The root MIT license covers original application code, scripts and documentation.
+It does not relicense third-party code, anatomical meshes, decoder binaries or
+external reference material. Each third-party component retains its own license.
+
+Asset license map:
+- public/models/human-atlas/*.glb.gz: BodyParts3D / DBCLS, CC BY 4.0;
+  adapted from ashemag/human-atlas (application reference code: MIT).
+- public/models/skin.glb and skin-neutral.glb: retained CC BY-SA 2.1 Japan.
+- Other public/models/*.glb: Z-Anatomy source/derived assets, CC BY-SA 4.0
+  with upstream component notices, including CC BY-NC and CC BY-NC-SA.
+  Per-component commercial clearance has not been established.
+- public/models/draco/: Google Draco, Apache-2.0.
+
+Full provenance, authors, modifications and license links:
+public/models/ATTRIBUTION.md
+public/models/Z-ANATOMY-LICENSE.txt
+public/models/human-atlas/UPSTREAM-ATTRIBUTION.md
+public/models/human-atlas/HUMAN-ATLAS-LICENSE.txt
+public/models/draco/LICENSE.txt
+
+Do not describe the complete asset bundle as MIT-only or unrestricted for
+commercial use. Retain attribution and applicable share-alike/noncommercial
+terms when redistributing the models. Hidden meshes remain in the asset files.
+Medical references remain the property of their respective publishers; links
+and educational summaries do not grant rights to republish source articles.
+
+Production builds include original license notices in /LICENSE.txt, /NOTICE.txt,
+/models/ATTRIBUTION.md and /THIRD_PARTY_NOTICES.txt. Keep these files when
+redistributing static builds, server bundles or Docker images.

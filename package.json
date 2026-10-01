@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n API,WEB \"tsx watch server/index.ts\" \"vite --host 0.0.0.0\"",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build && npm run build:server",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build && npm run build:server && node scripts/build-notices.mjs",
     "build:server": "esbuild server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist-server/index.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "tsx --test tests/*.test.ts",
@@ -16,7 +16,9 @@
     "docker:restart": "bash scripts/docker.sh restart",
     "docker:status": "bash scripts/docker.sh status",
     "docker:logs": "bash scripts/docker.sh logs",
-    "docker:check": "bash scripts/docker.sh check"
+    "docker:check": "bash scripts/docker.sh check",
+    "test:smoke": "node scripts/verify-production.mjs",
+    "check": "npm test && npm run build && npm run test:smoke"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
@@ -38,5 +40,25 @@
     "tsx": "^4.20.5",
     "typescript": "~5.9.2",
     "vite": "^7.1.5"
-  }
+  },
+  "description": "Interactive 3D human anatomy and health education atlas.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zbyisredeemer/3D-person-part-cure-sys.git"
+  },
+  "homepage": "https://github.com/zbyisredeemer/3D-person-part-cure-sys#readme",
+  "bugs": {
+    "url": "https://github.com/zbyisredeemer/3D-person-part-cure-sys/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "keywords": [
+    "anatomy",
+    "education",
+    "threejs",
+    "react",
+    "medical-education"
+  ]
 }

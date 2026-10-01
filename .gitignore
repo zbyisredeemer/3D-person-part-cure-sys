@@ -8,3 +8,8 @@ dist-server/
 !.env.example
 !.env.docker.example
 artifacts/
+
+coverage/
+*.log
+*.pem
+*.key

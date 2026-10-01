@@ -1,0 +1,10 @@
+name: Feature request / 改进建议
+description: 提出使用场景、功能或资料纠错建议。
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 场景与建议 / Use case and proposal
+      description: 医学或解剖纠错请附权威来源链接、涉及条目和核对日期。
+    validations:
+      required: true
