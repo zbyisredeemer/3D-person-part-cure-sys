@@ -41,7 +41,7 @@
     "esbuild": "0.28.2",
     "tsx": "^4.20.5",
     "typescript": "~5.9.2",
-    "vite": "^7.1.5"
+    "vite": "^7.3.7"
   },
   "description": "Interactive 3D human anatomy and health education atlas.",
   "license": "MIT",
